@@ -45,12 +45,56 @@ Lingo Leap 要件定義書
    4.5. 信頼性
    システムは安定稼働し、サービス中断は最小限に抑えられること。
    障害発生時には、迅速な復旧が可能な体制を構築します。
-5. 技術要件 (例として)
-   フロントエンド: React, Vue.js, Angular など（または Swift/Kotlin などのネイティブアプリ開発）
-   バックエンド: Python (Flask/Django), Node.js (Express), Go など
-   データベース: PostgreSQL, MySQL, Firestore など
-   AI/ML: 大規模言語モデル (LLM) の API 連携（例: OpenAI API, Gemini API など）
-   音声合成: Text-to-Speech (TTS) API 連携
+5. 技術要件（選定技術）
+   5.1. フロントエンド
+   Next.js（App Router）+ TypeScript を採用します。UI フレームワークとして Tailwind CSS を想定します。
+
+   - ルーティング: Next.js App Router
+   - 状態管理: 軽量なローカルステート（必要に応じて React Query など）
+   - 音声再生: ブラウザの Audio API を基本とし、TTS 生成音声の再生に対応
+
+     5.2. バックエンド（API）
+     Next.js の Route Handlers（Edge/Node ランタイム）を用いて API を実装します。
+
+   - AI 応答生成: ai-sdk を利用して LLM（例: OpenAI/Gemini 等）にリクエスト
+   - レート制御/ストリーミング: ai-sdk のストリーミング応答に対応
+
+     5.3. 認証/データベース
+     Supabase を採用します。
+
+   - 認証: Supabase Auth（メール/パスワード、OAuth など）
+   - データベース: Supabase Postgres（ブックマーク、学習履歴等の永続化）
+   - API アクセス: Supabase JavaScript SDK による RLS 前提の安全なアクセス
+
+     5.4. AI/ML
+     ai-sdk を通じて選定 LLM の API と連携します。
+
+   - モデル切替: 環境変数によりプロバイダ/モデルを切替可能に設計
+   - 生成内容: ユーザー入力に基づき英語表現を 3 通り生成
+
+     5.5. 音声合成（TTS）
+     初期はブラウザの読み上げ/外部 TTS API のいずれかを使用可能とします（将来拡張）。
+
+   - 候補: Vercel AI SDK 経由での TTS、あるいは外部サービス（例: ElevenLabs, Azure TTS 等）
+
+     5.6. デプロイ/ホスティング
+
+   - アプリ: Vercel にデプロイ（Preview/Production 環境）
+   - データベース/認証: Supabase プロジェクトにホスト
+   - 監視: Vercel Analytics（必要に応じて追加の監視を導入）
+
+     5.7. アーキテクチャ概要
+
+   - フロントエンド（Next.js）から Route Handler 経由で ai-sdk を呼び出し、3 件の英語メッセージを生成
+   - ブックマーク操作はフロントエンドから Supabase に対して実施（RLS/ポリシーによりユーザー毎に保護）
+   - 認証は Supabase Auth を利用し、ログイン状態に応じた表示/保存を制御
+
+     5.8. 環境変数（例）
+
+   - LLM プロバイダ鍵: AI_PROVIDER_API_KEY
+   - Supabase: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - 任意: TTS プロバイダ鍵（採用時）
+
 6. 今後の展望・考慮事項
    学習履歴の可視化機能
    レベルに応じた学習コンテンツのパーソナライズ
