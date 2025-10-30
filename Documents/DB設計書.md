@@ -18,10 +18,13 @@ DB 設計書（Lingo Leap）
 - messages: 発話（user / assistant / system）。アシスタントは同一ユーザー発話への応答を最大 3 バブルで返す。
 - bookmarks: ブックマーク（ユーザー単位で message を保存）
 - tts_cache: TTS 音声キャッシュ（message × voice × provider 単位）
+<<<<<<< HEAD
 - study_history: 学習履歴（学習行動イベントのログ）
 - analytics.study_history_daily: 学習履歴の日次集計ビュー（読み取り専用）
 - analytics.user_first_active: 初回活動画面（週次起点）ビュー（読み取り専用）
 - analytics.weekly_cohort_retention (MV 想定): 週次コホート × 継続の集計
+=======
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 
 3. ER 関係（テキスト表現）
 
@@ -30,7 +33,10 @@ DB 設計書（Lingo Leap）
 - conversations 1 — n messages
 - auth.users 1 — n bookmarks（bookmarks n — 1 messages）
 - messages 1 — n tts_cache
+<<<<<<< HEAD
 - auth.users 1 — n study_history
+=======
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 - messages（assistant）: `response_to_message_id` によりトリガーとなった user メッセージへ参照
 - messages（assistant の 3 バブル）: 同一応答セットを `message_set_id` でグルーピング
 
@@ -222,6 +228,7 @@ ORDER BY sequence_num DESC
 LIMIT 50;
 ```
 
+<<<<<<< HEAD
 4.6 study_history（学習履歴）
 
 要件:
@@ -293,6 +300,8 @@ group by 1;
 -- select ... ;
 ```
 
+=======
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 6.2 ユーザーのブックマーク一覧（最新順）
 
 ```sql
@@ -327,12 +336,19 @@ LIMIT 1;
 4) messages
 5) bookmarks（user_id -> auth.users）
 6) tts_cache
+<<<<<<< HEAD
 7) study_history（user_id -> auth.users）
 8) analytics スキーマとビュー群（マテビューは任意）
 
 8. 将来拡張のための余白
 
 - 学習履歴可視化/高度統計: `study_history` を集計したビュー/マテビュー、リテンション分析
+=======
+
+8. 将来拡張のための余白
+
+- 学習履歴可視化: `study_logs`（再生・復習回数、間隔、正答率など）
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 - レベル別パーソナライズ: `user_profiles`（CEFR/好み/目標）
 - クイズ機能: `quizzes`, `quiz_questions`, `quiz_answers`, `quiz_sessions`
 - コミュニティ機能: `posts`, `comments`, `likes`

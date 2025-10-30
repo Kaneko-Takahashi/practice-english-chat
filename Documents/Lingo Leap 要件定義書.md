@@ -70,7 +70,11 @@ Lingo Leap 要件定義書
      Supabase を採用します。
 
    - 認証: Supabase Auth（メール/パスワード、OAuth など）
+<<<<<<< HEAD
    - データベース: Supabase Postgres（ブックマーク、学習履歴の永続化）
+=======
+   - データベース: Supabase Postgres（ブックマーク、学習履歴等の永続化）
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
    - API アクセス: Supabase JavaScript SDK による RLS 前提の安全なアクセス
 
      5.4. AI/ML
@@ -95,8 +99,11 @@ Lingo Leap 要件定義書
    - フロントエンド（Next.js）から Route Handler 経由で ai-sdk を呼び出し、3 件の英語メッセージを生成
    - ブックマーク操作はフロントエンドから Supabase に対して実施（RLS/ポリシーによりユーザー毎に保護）
    - 認証は Supabase Auth を利用し、ログイン状態に応じた表示/保存を制御
+<<<<<<< HEAD
    - 学習履歴はフロントエンドから API 経由で記録し、Supabase に保存（RLS によりユーザー毎に保護）
    - 可視化/統計/リテンションは Supabase のビュー/マテリアライズドビューの集計を API から提供
+=======
+>>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 
      5.8. 環境変数（例）
 
