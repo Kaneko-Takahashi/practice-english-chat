@@ -1,8 +1,8 @@
-# Supabase連携セットアップガイド
+# Supabase 連携セットアップガイド
 
 ## 1. パッケージのインストール
 
-以下のコマンドでSupabase関連のパッケージをインストールしてください：
+以下のコマンドで Supabase 関連のパッケージをインストールしてください：
 
 ```bash
 cd front
@@ -15,7 +15,7 @@ yarn install
 yarn add @supabase/supabase-js @supabase/ssr
 ```
 
-## 2. Supabaseプロジェクトの作成
+## 2. Supabase プロジェクトの作成
 
 1. [Supabase](https://app.supabase.com/)にアクセスしてアカウントを作成（またはログイン）
 2. 新しいプロジェクトを作成
@@ -32,65 +32,66 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-**注意**: `.env.local`ファイルは`.gitignore`に含まれているため、Gitにコミットされません。
+**注意**: `.env.local`ファイルは`.gitignore`に含まれているため、Git にコミットされません。
 
 ## 4. データベーステーブルの作成
 
-SupabaseのSQL Editorで、`Documents/DB設計書.md`に記載されているSQLを実行してください。
+Supabase の SQL Editor で、`Documents/DB設計書.md`に記載されている SQL を実行してください。
 
 主なテーブル：
+
 - `profiles` - ユーザープロファイル
 - `conversations` - チャット会話
 - `messages` - メッセージ
 - `bookmarks` - ブックマーク
-- `tts_cache` - TTS音声キャッシュ
+- `tts_cache` - TTS 音声キャッシュ
 
 ## 5. 作成されたファイル
 
 以下のファイルが作成されています：
 
-- `lib/supabase/client.ts` - ブラウザ用Supabaseクライアント
-- `lib/supabase/server.ts` - サーバー用Supabaseクライアント
+- `lib/supabase/client.ts` - ブラウザ用 Supabase クライアント
+- `lib/supabase/server.ts` - サーバー用 Supabase クライアント
 - `lib/supabase/middleware.ts` - ミドルウェア用ヘルパー
 - `lib/auth.ts` - 認証用ヘルパー関数
-- `middleware.ts` - Next.jsミドルウェア（認証状態の管理）
-- `types/supabase.ts` - TypeScript型定義
+- `middleware.ts` - Next.js ミドルウェア（認証状態の管理）
+- `types/supabase.ts` - TypeScript 型定義
 
 ## 6. 使用方法
 
 ### クライアントコンポーネントでの使用
 
 ```typescript
-'use client'
-import { createClient } from '@/lib/supabase/client'
+"use client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function MyComponent() {
-  const supabase = createClient()
-  
+  const supabase = createClient();
+
   // 認証状態の取得
-  const { data: { user } } = await supabase.auth.getUser()
-  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   // データの取得
-  const { data } = await supabase
-    .from('bookmarks')
-    .select('*')
+  const { data } = await supabase.from("bookmarks").select("*");
 }
 ```
 
 ### サーバーコンポーネントでの使用
 
 ```typescript
-import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
 
 export default async function MyPage() {
-  const { user, supabase } = await requireAuth()
-  
+  const { user, supabase } = await requireAuth();
+
   // 認証が必要な処理
   const { data } = await supabase
-    .from('bookmarks')
-    .select('*')
-    .eq('user_id', user.id)
+    .from("bookmarks")
+    .select("*")
+    .eq("user_id", user.id);
 }
 ```
 
@@ -103,7 +104,6 @@ export default async function MyPage() {
 
 ## 参考リンク
 
-- [Supabase公式ドキュメント](https://supabase.com/docs)
+- [Supabase 公式ドキュメント](https://supabase.com/docs)
 - [Supabase Auth](https://supabase.com/docs/guides/auth)
-- [Supabase Next.js統合](https://supabase.com/docs/guides/auth/server-side/nextjs)
-
+- [Supabase Next.js 統合](https://supabase.com/docs/guides/auth/server-side/nextjs)
