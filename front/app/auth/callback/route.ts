@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const error = requestUrl.searchParams.get("error");
   const errorDescription = requestUrl.searchParams.get("error_description");
+  const type = requestUrl.searchParams.get("type");
 
   // エラーがある場合はエラーページにリダイレクト
   if (error) {
@@ -41,7 +42,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 認証成功時はホームページにリダイレクト
+    // パスワードリセットの場合は、パスワードリセット画面にリダイレクト
+    if (type === "recovery") {
+      return NextResponse.redirect(
+        new URL("/auth/reset-password", requestUrl.origin)
+      );
+    }
+
+    // その他の認証成功時はホームページにリダイレクト
     return NextResponse.redirect(new URL("/", requestUrl.origin));
   }
 
