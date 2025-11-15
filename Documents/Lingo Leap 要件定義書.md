@@ -52,9 +52,24 @@ Lingo Leap 要件定義書
    - ルーティング: Next.js App Router
    - 状態管理: 軽量なローカルステート（必要に応じて React Query など）
    - 音声再生: ブラウザの Audio API を基本とし、TTS 生成音声の再生に対応
+   - Next.js 設定: `next.config.ts` にて開発環境のインジケーター（N マーク）を非表示に設定
 
-     5.2. バックエンド（API）
-     Next.js の Route Handlers（Edge/Node ランタイム）を用いて API を実装します。
+     - `devIndicators: false` を設定することで、開発サーバー起動時の左下に表示される「N」マークを非表示にします
+     - 設定ファイル: `front/next.config.ts`
+     - 設定例:
+
+       ```typescript
+       import type { NextConfig } from "next";
+
+       const nextConfig: NextConfig = {
+         devIndicators: false,
+       };
+
+       export default nextConfig;
+       ```
+
+       5.2. バックエンド（API）
+       Next.js の Route Handlers（Edge/Node ランタイム）を用いて API を実装します。
 
    - AI 応答生成: ai-sdk を利用して LLM（例: OpenAI/Gemini 等）にリクエスト
    - レート制御/ストリーミング: ai-sdk のストリーミング応答に対応
@@ -94,6 +109,15 @@ Lingo Leap 要件定義書
    - LLM プロバイダ鍵: AI_PROVIDER_API_KEY
    - Supabase: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
    - 任意: TTS プロバイダ鍵（採用時）
+
+     5.9. Favicon（サイトアイコン）
+
+   - ブラウザのタブやブックマークに表示されるサイトのアイコンを設定します。
+   - ファイル形式: `.ico`形式（推奨サイズ: 32x32px、複数サイズを含むマルチアイコン形式）
+   - 配置場所: `front/app/favicon.ico`
+   - Next.js の App Router では、`app`ディレクトリに配置された`favicon.ico`が自動的に認識されます。
+   - `layout.tsx`の metadata で明示的に favicon を指定することで、ブラウザに正しいアイコンを確実に表示させます。
+   - ブランドロゴやサービス名の頭文字（例: "L"）などを使用し、視認性の高いデザインとします。
 
 6. 今後の展望・考慮事項
    学習履歴の可視化機能
