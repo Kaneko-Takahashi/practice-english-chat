@@ -320,3 +320,105 @@ export async function updatePassword(
     };
   }
 }
+
+export type ChangePasswordResult =
+  | { success: true; message: string }
+  | { success: false; error: string };
+
+/**
+ * パスワード変更Server Action
+ * ログイン済みユーザーが現在のパスワードを確認して新しいパスワードに変更する
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<ChangePasswordResult> {
+  try {
+    // バリデーション
+    if (!currentPassword) {
+      return {
+        success: false,
+        error: "現在のパスワードを入力してください",
+      };
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return {
+        success: false,
+        error: "新しいパスワードは6文字以上で入力してください",
+      };
+    }
+
+    if (currentPassword === newPassword) {
+      return {
+        success: false,
+        error:
+          "新しいパスワードは現在のパスワードと異なるものを入力してください",
+      };
+    }
+
+    // サーバー側のSupabaseクライアントを取得
+    const supabase = await createClient();
+
+    // 現在のユーザーを取得
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return {
+        success: false,
+        error: "認証セッションが無効です。再度ログインしてください。",
+      };
+    }
+
+    if (!user.email) {
+      return {
+        success: false,
+        error: "メールアドレスが見つかりません。",
+      };
+    }
+
+    // 現在のパスワードを確認するために、一時的にログインを試みる
+    // セキュリティのため、現在のパスワードが正しいか確認する必要がある
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      return {
+        success: false,
+        error: "現在のパスワードが正しくありません",
+      };
+    }
+
+    // 現在のパスワードが正しいことが確認できたので、新しいパスワードに更新
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      console.error("Change password error:", updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    // 成功時はページを再検証
+    revalidatePath("/", "layout");
+
+    return {
+      success: true,
+      message: "パスワードが正常に変更されました。",
+    };
+  } catch (error) {
+    console.error("Change password error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "予期しないエラーが発生しました",
+    };
+  }
+}

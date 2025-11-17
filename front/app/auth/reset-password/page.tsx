@@ -19,23 +19,74 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Supabaseのセッションが有効か確認
     // メールリンクにはハッシュフラグメント（#access_token=...&type=recovery）が含まれるため、
-    // Supabaseクライアントが自動的にセッションを確立する
+    // クライアント側で明示的にセッションを確立する必要がある
     const checkSession = async () => {
       const supabase = createClient();
 
-      // ハッシュフラグメントからセッションを確立（Supabaseが自動的に処理）
-      // ページロード時にハッシュフラグメントが存在する場合、Supabaseが自動的にセッションを確立する
-
-      // セッションを確認
+      // まず既存のセッションを確認
       const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+        data: { session: existingSession },
+      } = await supabase.auth.getSession();
 
-      if (error || !user) {
-        setIsValidSession(false);
+      if (existingSession) {
+        // 既にセッションが存在する場合、ユーザー情報を確認
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error || !user) {
+          setIsValidSession(false);
+        } else {
+          setIsValidSession(true);
+        }
+        return;
+      }
+
+      // セッションが存在しない場合、ハッシュフラグメントからセッションを確立
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const type = hashParams.get("type");
+
+      if (accessToken && type === "recovery") {
+        try {
+          // ハッシュフラグメントからセッションを確立
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || "",
+          });
+
+          if (sessionError || !data.session) {
+            console.error("セッション確立エラー:", sessionError);
+            setIsValidSession(false);
+            return;
+          }
+
+          // セッションが確立されたので、ユーザー情報を確認
+          const {
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser();
+
+          if (userError || !user) {
+            setIsValidSession(false);
+          } else {
+            setIsValidSession(true);
+            // ハッシュフラグメントをクリーンアップ（セキュリティのため）
+            window.history.replaceState(
+              null,
+              "",
+              window.location.pathname + window.location.search
+            );
+          }
+        } catch (error) {
+          console.error("セッション確立エラー:", error);
+          setIsValidSession(false);
+        }
       } else {
-        setIsValidSession(true);
+        // ハッシュフラグメントが無効または存在しない
+        setIsValidSession(false);
       }
     };
 
