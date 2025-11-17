@@ -1,9 +1,6 @@
 "use client";
 
 import { useState, FormEvent, useRef, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { logout } from "@/app/actions/auth";
-import Link from "next/link";
 
 interface Message {
   id: string;
@@ -17,30 +14,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<any>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  const handleLogout = async () => {
-    if (!confirm("ログアウトしますか？")) return;
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout error:", error);
-      setIsLoggingOut(false);
-    }
-  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -87,84 +64,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* ヘッダー */}
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/80">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-2xl font-extrabold tracking-tight text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400"
-              suppressHydrationWarning
-              translate="no"
-            >
-              Lingo Leap
-            </Link>
-          </div>
-          <div className="flex items-center gap-4">
-            {user && (
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-bold text-white">
-                  {user.email?.charAt(0).toUpperCase() || "U"}
-                </div>
-                <span className="hidden text-sm text-slate-600 dark:text-slate-300 sm:inline">
-                  {user.email}
-                </span>
-              </div>
-            )}
-            <Link
-              href="/bookmarks"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              ブックマーク
-            </Link>
-            {user && (
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-700"
-                title="ログアウト"
-              >
-                {isLoggingOut ? (
-                  <svg
-                    className="h-5 w-5 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
       {/* メッセージエリア */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-4xl space-y-6">

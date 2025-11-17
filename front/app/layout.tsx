@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { createClient } from "@/lib/supabase/server";
+import { AuthenticatedLayoutWrapper } from "@/components/Layout/AuthenticatedLayoutWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,17 +27,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 認証状態をチェック
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="ja">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthenticatedLayoutWrapper isAuthenticated={!!user}>
+          {children}
+        </AuthenticatedLayoutWrapper>
       </body>
     </html>
   );
