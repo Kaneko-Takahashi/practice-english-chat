@@ -102,7 +102,6 @@ export function SidebarNavContainer() {
       ),
       label: "マイページ",
     },
-    // 将来の機能（準備中）
     {
       href: "/history",
       icon: (
@@ -121,7 +120,6 @@ export function SidebarNavContainer() {
         </svg>
       ),
       label: "学習履歴可視化",
-      disabled: true,
     },
     {
       href: "/quiz",
@@ -167,7 +165,6 @@ export function SidebarNavContainer() {
         </svg>
       ),
       label: "設定",
-      disabled: true,
     },
     {
       href: "/faq",
@@ -343,7 +340,7 @@ export function SidebarNavContainer() {
   // デスクトップ表示
   return (
     <aside
-      className={`relative hidden h-screen transition-all duration-300 md:block ${
+      className={`relative hidden h-screen overflow-visible transition-all duration-300 md:block ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
@@ -357,4 +354,3 @@ export function SidebarNavContainer() {
     </aside>
   );
 }
-

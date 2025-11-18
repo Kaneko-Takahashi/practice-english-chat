@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent, useEffect, useCallback } from "react";
 import {
   changePassword,
   type ChangePasswordResult,
   resetPassword,
   type ResetPasswordResult,
 } from "@/app/actions/auth";
+import { getProfile, updateDisplayName } from "@/app/actions/profile";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ProfileSummaryCard } from "@/components/Profile/ProfileSummaryCard";
+import type { Profile } from "@/types/supabase";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -27,6 +30,42 @@ export default function ProfilePage() {
   const [isResetLoading, setIsResetLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [isDisplayNameLoading, setIsDisplayNameLoading] = useState(false);
+  const [displayNameResult, setDisplayNameResult] = useState<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  } | null>(null);
+
+  const fetchProfile = useCallback(async () => {
+    setProfileError(null);
+    setIsProfileLoading(true);
+
+    try {
+      const result = await getProfile();
+      if (result.success) {
+        setProfile(result.profile);
+        setDisplayName(result.profile.display_name || "");
+      } else {
+        setProfileError(result.error);
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error("Fetch profile error:", error);
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "プロフィールの取得に失敗しました"
+      );
+      setProfile(null);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     // 認証状態を確認
@@ -43,11 +82,13 @@ export default function ProfilePage() {
       } else {
         setIsAuthenticated(true);
         setUserEmail(user.email || null);
+        // プロフィールを取得
+        await fetchProfile();
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, fetchProfile]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -143,6 +184,37 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDisplayNameSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsDisplayNameLoading(true);
+    setDisplayNameResult(null);
+
+    try {
+      const result = await updateDisplayName(displayName);
+      if (result.success) {
+        setDisplayNameResult({ success: true, message: result.message });
+        // プロフィールを再取得して最新の状態を反映
+        await fetchProfile();
+        // 3秒後にメッセージを消す
+        setTimeout(() => {
+          setDisplayNameResult(null);
+        }, 3000);
+      } else {
+        setDisplayNameResult({ success: false, error: result.error });
+      }
+    } catch (error) {
+      setDisplayNameResult({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "予期しないエラーが発生しました",
+      });
+    } finally {
+      setIsDisplayNameLoading(false);
+    }
+  };
+
   if (isAuthenticated === null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -180,7 +252,99 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white/80 p-8 shadow-2xl backdrop-blur-sm dark:bg-slate-800/80 dark:shadow-slate-900/50">
+      {/* PC画面では横幅を広げる（max-w-md → max-w-xl）、スマホ・タブレットは従来通り */}
+      <div className="relative z-10 w-full max-w-md lg:max-w-xl rounded-2xl bg-white/80 p-8 shadow-2xl backdrop-blur-sm dark:bg-slate-800/80 dark:shadow-slate-900/50">
+        {/* プロフィールカード */}
+        <div className="mb-8">
+          <ProfileSummaryCard
+            profile={profile}
+            isLoading={isProfileLoading}
+            error={profileError}
+            onRetry={fetchProfile}
+          />
+        </div>
+
+        {/* 表示名の設定 */}
+        <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-900/50">
+          <h2 className="mb-2 text-lg font-semibold text-slate-800 dark:text-slate-100">
+            表示名の設定
+          </h2>
+          <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+            チャット画面で表示される名前を設定できます。
+          </p>
+          <form onSubmit={handleDisplayNameSubmit} className="space-y-4">
+            <div>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="例）Yuki / ゆき"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20"
+                disabled={isDisplayNameLoading}
+              />
+            </div>
+            {displayNameResult && (
+              <div
+                className={`rounded-xl p-4 ${
+                  displayNameResult.success
+                    ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                    : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {displayNameResult.success ? (
+                    <svg
+                      className="h-5 w-5 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-5 w-5 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  )}
+                  <div className="flex-1">
+                    {displayNameResult.success ? (
+                      <p className="text-sm font-medium">
+                        {displayNameResult.message}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium">
+                        {displayNameResult.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={isDisplayNameLoading}
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 px-6 py-3 font-semibold text-white shadow-lg shadow-indigo-500/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 dark:from-indigo-500 dark:via-purple-500 dark:to-indigo-500"
+            >
+              {isDisplayNameLoading ? "保存中..." : "表示名を保存"}
+            </button>
+          </form>
+        </div>
+
         {/* ユーザー情報表示 */}
         <div className="mb-8 rounded-xl bg-slate-50 p-4 dark:bg-slate-900/50">
           <h2 className="mb-2 text-lg font-semibold text-slate-800 dark:text-slate-100">

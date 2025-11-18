@@ -30,3 +30,40 @@ BEFORE UPDATE ON public.messages
 FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 
+-- RLS の有効化
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+-- 自分の会話のメッセージを参照可能
+DROP POLICY IF EXISTS "Read own messages" ON public.messages;
+CREATE POLICY "Read own messages"
+ON public.messages FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.conversations
+    WHERE conversations.id = messages.conversation_id
+    AND conversations.user_id = auth.uid()
+    AND conversations.deleted_at IS NULL
+  )
+);
+
+-- 自分の会話のメッセージを変更可能（INSERT, UPDATE, DELETE）
+DROP POLICY IF EXISTS "Modify own messages" ON public.messages;
+CREATE POLICY "Modify own messages"
+ON public.messages FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM public.conversations
+    WHERE conversations.id = messages.conversation_id
+    AND conversations.user_id = auth.uid()
+    AND conversations.deleted_at IS NULL
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.conversations
+    WHERE conversations.id = messages.conversation_id
+    AND conversations.user_id = auth.uid()
+    AND conversations.deleted_at IS NULL
+  )
+);
+

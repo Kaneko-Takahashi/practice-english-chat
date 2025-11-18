@@ -30,4 +30,3 @@ export function CollapseButton({ isCollapsed, onClick }: CollapseButtonProps) {
     </button>
   );
 }
-

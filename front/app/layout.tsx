@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { createClient } from "@/lib/supabase/server";
 import { AuthenticatedLayoutWrapper } from "@/components/Layout/AuthenticatedLayoutWrapper";
+import { ThemeProvider } from "@/components/Settings/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <ThemeProvider />
         <AuthenticatedLayoutWrapper isAuthenticated={!!user}>
           {children}
         </AuthenticatedLayoutWrapper>

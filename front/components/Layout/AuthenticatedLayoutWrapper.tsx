@@ -20,7 +20,8 @@ export function AuthenticatedLayoutWrapper({
   // 認証済みで、かつ認証ページでない場合のみサイドバーを表示
   if (isAuthenticated && !isAuthPage) {
     return (
-      <div className="flex h-screen overflow-hidden">
+      // overflow-x-visibleを追加してサイドバーの折りたたみボタンが切れないようにする
+      <div className="flex h-screen overflow-x-visible overflow-y-hidden">
         <SidebarNavContainer />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
