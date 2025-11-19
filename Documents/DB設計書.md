@@ -269,7 +269,7 @@ CREATE INDEX IF NOT EXISTS idx_tts_cache_provider_voice ON public.tts_cache (pro
 4.6 study_logs（学習ログ）
 要件:
 
-- ユーザーの学習活動（チャット送信、音声再生、ブックマーク追加/削除）を記録
+- ユーザーの学習活動（チャット送信、音声再生、ブックマーク追加/削除、クイズプレイ）を記録
 - 記録設定で許可されている場合のみログを記録
 - 学習履歴可視化ページで統計グラフとして表示するために使用
 
@@ -277,7 +277,7 @@ CREATE INDEX IF NOT EXISTS idx_tts_cache_provider_voice ON public.tts_cache (pro
 CREATE TABLE IF NOT EXISTS public.study_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('chat_send', 'audio_play', 'bookmark_add', 'bookmark_remove')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('chat_send', 'audio_play', 'bookmark_add', 'bookmark_remove', 'quiz_play')),
   learning_level TEXT CHECK (learning_level IN ('beginner', 'standard', 'advanced')),
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -312,12 +312,30 @@ CREATE POLICY "Users can delete their own study logs"
 
 **カラムの説明:**
 
-- `event_type`: イベントの種類。`chat_send`（チャット送信）、`audio_play`（音声再生）、`bookmark_add`（ブックマーク追加）、`bookmark_remove`（ブックマーク削除）の 4 種類。
+- `event_type`: イベントの種類。`chat_send`（チャット送信）、`audio_play`（音声再生）、`bookmark_add`（ブックマーク追加）、`bookmark_remove`（ブックマーク削除）、`quiz_play`（クイズプレイ）の 5 種類。
 - `learning_level`: イベント発生時のユーザーの学習レベル。`profiles.learning_level`から取得。
-- `metadata`: イベント固有の追加情報を JSON 形式で保存。例: `{"message_id": "...", "audio_speed": "normal", "voice_type": "female_1"}`
+  - **注意**: クイズプレイ時に一時的に難易度を変更した場合、この`learning_level`は一時的に選択された難易度を反映する（設定値とは異なる場合がある）。
+- `metadata`: イベント固有の追加情報を JSON 形式で保存。
+  - チャット: `{"conversation_id": "...", "message_length": 50}`
+  - 音声: `{"message_id": "...", "audio_speed": "normal", "voice_type": "female_1", "text_length": 30}`
+  - ブックマーク: `{"message_id": "..."}`
+  - クイズ: `{"quiz_type": "sentence_scramble", "total_questions": 10, "correct_answers": 7, "score": 70, "total_time": 180}`
+    - `quiz_type`: クイズの種類（現在は `sentence_scramble` のみ）
+    - `total_questions`: 総問題数
+    - `correct_answers`: 正解数
+    - `score`: スコア（0-100 点）
+    - `total_time`: 総プレイ時間（秒）
 - `created_at`: ログの記録日時。統計集計の基準となる。
 
-5. 非機能要件への配慮
+**クイズプレイ時の記録方法:**
+
+1. スタート画面で難易度を選択（やさしい/ふつう/チャレンジ）
+2. ゲームプレイ中、選択された難易度で問題が生成される
+3. ゲーム終了時、`logStudyEvent("quiz_play", ...)` を実行
+4. `learning_level` には選択された難易度が記録される（一時的に変更した場合も反映）
+5. スコアは自動的に localStorage に保存され、次回のスタート画面で表示される
+
+6. 非機能要件への配慮
 
 - パフォーマンス: チャットグループ内順序は `(chat_group_id, sequence_num)` ユニークで取得高速化。`chat_messages` の主要検索列へインデックス付与。
 - スケーラビリティ: 音声はバイナリを DB に保持せず `storage_key`（外部ストレージ）参照。CDN 併用想定。

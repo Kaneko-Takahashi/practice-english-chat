@@ -9,7 +9,7 @@ export function CollapseButton({ isCollapsed, onClick }: CollapseButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="absolute -right-3 top-4 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-md transition-all hover:scale-110 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800"
+      className="absolute -right-3 top-4 z-50 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-md transition-all hover:scale-110 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800"
       aria-label={isCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"}
     >
       <svg

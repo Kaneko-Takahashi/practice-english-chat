@@ -208,7 +208,8 @@ export interface Database {
             | "chat_send"
             | "audio_play"
             | "bookmark_add"
-            | "bookmark_remove";
+            | "bookmark_remove"
+            | "quiz_play";
           learning_level: "beginner" | "standard" | "advanced" | null;
           metadata: Json;
           created_at: string;
@@ -220,7 +221,8 @@ export interface Database {
             | "chat_send"
             | "audio_play"
             | "bookmark_add"
-            | "bookmark_remove";
+            | "bookmark_remove"
+            | "quiz_play";
           learning_level?: "beginner" | "standard" | "advanced" | null;
           metadata?: Json;
           created_at?: string;
@@ -232,7 +234,8 @@ export interface Database {
             | "chat_send"
             | "audio_play"
             | "bookmark_add"
-            | "bookmark_remove";
+            | "bookmark_remove"
+            | "quiz_play";
           learning_level?: "beginner" | "standard" | "advanced" | null;
           metadata?: Json;
           created_at?: string;

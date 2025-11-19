@@ -242,6 +242,73 @@ Lingo Leap API 設計書
     - 日別統計、イベントタイプ別統計を提供
     - フロントエンドで Recharts を使用してグラフ化
 
+### 6.6 クイズ／ゲーム API（実装済み）
+
+- **POST `/api/quiz/generate`**
+  - 概要: ユーザーの学習レベルに応じた英語並び替え問題を動的に生成
+  - メソッド: POST（Next.js Route Handler）
+  - パス: `/api/quiz/generate/route.ts`
+  - 認証: 必須（Supabase Auth）
+  - リクエストボディ:
+    ```typescript
+    {
+      count?: number;        // 問題数（デフォルト: 10）
+      level?: "beginner" | "standard" | "advanced"; // 学習レベル（省略時はユーザーの設定値を使用）
+    }
+    ```
+  - レスポンス:
+    ```typescript
+    {
+      success: boolean;
+      questions?: Array<{
+        id: string;                // 問題ID（例: "q1", "q2", ...）
+        japanese: string;          // 日本語の意味
+        english: string;           // 正解の英語文
+        shuffledWords: string[];   // シャッフルされた単語配列
+        correctOrder: string[];    // 正解の単語順序
+      }>;
+      level?: "beginner" | "standard" | "advanced"; // 適用された学習レベル
+      error?: string;
+    }
+    ```
+  - 問題生成ロジック:
+    - **やさしい（beginner）**:
+      - 3-6 語の基本的な単語
+      - 単純な文法構造（S+V+O）
+      - 現在形・過去形の基本時制
+      - 日常会話（挨拶、買い物、道案内）
+    - **ふつう（standard）**:
+      - 5-9 語の自然な語彙
+      - 基本～中程度の文法構造
+      - 一般的な時制（現在・過去・未来）
+      - 日常生活（旅行、仕事、趣味）
+    - **チャレンジ（advanced）**:
+      - 8-12 語の洗練された語彙
+      - 複雑な文法構造（関係節、条件節）
+      - 完了時制を含む多様な時制
+      - ビジネス・フォーマルな状況
+  - 技術実装:
+    - **Vercel AI SDK**（`ai` パッケージ）の `generateText` を使用
+    - AI プロバイダー: OpenAI または Google Generative AI（環境変数で選択）
+      - OpenAI: `gpt-4o-mini`（デフォルト）
+      - Google: `gemini-1.5-flash`（デフォルト）
+    - プロンプトで学習レベルに応じた難易度調整
+    - JSON フォーマットで 10 問を一括生成
+    - 単語のシャッフルはサーバー側で実行（ランダムソート）
+    - 環境変数:
+      - `AI_PROVIDER`: "openai" | "google"（デフォルト: "openai"）
+      - `OPENAI_API_KEY`: OpenAI API キー
+      - `GOOGLE_GENERATIVE_AI_API_KEY`: Google Generative AI API キー
+      - `AI_MODEL`: モデル名（省略時は上記デフォルト）
+  - エラーハンドリング:
+    - 認証エラー: `401 Unauthorized`
+    - 問題生成失敗: `500 Internal Server Error` + エラーメッセージ
+  - 備考:
+    - 生成された問題は揮発的（DB 保存なし）
+    - 同じリクエストでも毎回異なる問題が生成される
+    - 学習レベルが指定されない場合、ユーザーの `profiles.learning_level` を自動取得
+    - 学習ログへの記録は別途 `logStudyEvent("quiz_play", ...)` で実行
+
 ## 7. ステータス/エラー方針
 
 - 200: 正常、201: 作成、204: 削除

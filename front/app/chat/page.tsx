@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
+import Link from "next/link";
 import { MessageBubble } from "@/components/Chat/MessageBubble";
 import {
   createConversation,
@@ -565,13 +566,13 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* メッセージエリア */}
-      <div className="flex-1 overflow-y-auto px-4 pt-16 pb-6">
+      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-6">
         {dbMessages.length === 0 && streamMessages.length === 0 ? (
-          <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="flex items-start">
             <div className="w-full max-w-4xl">
               <div className="max-w-3xl mx-auto text-center">
                 {/* メインタイトル */}
-                <div className="mb-10 mt-8">
+                <div className="mb-6 mt-4">
                   <h1 className="mb-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-4xl font-bold text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">
                     英語学習を始めましょう！
                   </h1>
@@ -581,11 +582,11 @@ export default function ChatPage() {
                 </div>
 
                 {/* 使い方の説明 */}
-                <div className="mb-8 rounded-2xl bg-white/80 p-6 shadow-lg backdrop-blur-sm dark:bg-slate-800/80">
+                <div className="mb-6 rounded-2xl bg-white/80 p-6 shadow-lg backdrop-blur-sm dark:bg-slate-800/80">
                   <h2 className="mb-4 text-left text-xl font-bold text-slate-800 dark:text-slate-100">
                     💡 使い方はとても簡単！
                   </h2>
-                  <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-400">
+                  <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-400 mb-6">
                     <p>
                       <strong>1️⃣ 入力</strong>:
                       下の入力欄に、英語で言いたいことを<strong>日本語</strong>
@@ -600,6 +601,38 @@ export default function ChatPage() {
                       <strong>スピーカーボタン</strong>
                       をクリックすると、ネイティブの発音が聞けます！
                     </p>
+                  </div>
+
+                  {/* リンクとゲームへのコメント */}
+                  <div className="mt-6 space-y-4 border-t border-slate-200 pt-6 dark:border-slate-700">
+                    <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+                      💡 より詳しい設定や使い方はこちら
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-4">
+                      <Link
+                        href="/settings"
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-indigo-600 shadow-sm transition-all hover:bg-indigo-50 hover:shadow-md dark:bg-slate-700 dark:text-indigo-400 dark:hover:bg-slate-600"
+                      >
+                        ⚙️ 詳細設定はこちら
+                      </Link>
+                      <Link
+                        href="/faq"
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-purple-600 shadow-sm transition-all hover:bg-purple-50 hover:shadow-md dark:bg-slate-700 dark:text-purple-400 dark:hover:bg-slate-600"
+                      >
+                        ❓ FAQとサポートページはこちら
+                      </Link>
+                    </div>
+                    <p className="mt-4 text-center text-sm font-medium text-slate-700 dark:text-slate-300">
+                      🎮 また、ゲームにもチャレンジしてみてね！
+                    </p>
+                    <div className="flex justify-center">
+                      <Link
+                        href="/quiz"
+                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:scale-105 hover:shadow-lg dark:from-indigo-500 dark:to-purple-500"
+                      >
+                        🎯 クイズ／ゲームをプレイ
+                      </Link>
+                    </div>
                   </div>
                 </div>
 
@@ -656,7 +689,7 @@ export default function ChatPage() {
                 </div>
 
                 {/* アクションの促し */}
-                <div className="mt-8">
+                <div className="mt-6">
                   <div className="mb-2 animate-bounce text-3xl">👇</div>
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
                     さあ、下の入力欄に入力して始めましょう！

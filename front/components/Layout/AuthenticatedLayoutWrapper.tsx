@@ -21,9 +21,13 @@ export function AuthenticatedLayoutWrapper({
   if (isAuthenticated && !isAuthPage) {
     return (
       // overflow-x-visibleを追加してサイドバーの折りたたみボタンが切れないようにする
-      <div className="flex h-screen overflow-x-visible overflow-y-hidden">
-        <SidebarNavContainer />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+      <div className="relative flex h-screen overflow-x-visible overflow-y-hidden">
+        <div className="relative overflow-visible">
+          <SidebarNavContainer />
+        </div>
+        <main className="relative flex-1 overflow-y-auto overflow-x-hidden">
+          {children}
+        </main>
       </div>
     );
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   getSettings,
   updateSettings,
@@ -575,6 +576,16 @@ export default function SettingsPage() {
             {isSaving ? "保存中..." : "設定を保存"}
           </button>
         </form>
+
+        {/* ホームへ戻る */}
+        <div className="mt-6 text-center">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
+          >
+            ← ホームに戻る
+          </Link>
+        </div>
       </div>
     </div>
   );
