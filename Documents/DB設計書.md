@@ -336,7 +336,7 @@ LIMIT 1;
 - 学習履歴可視化/高度統計: `study_history` を集計したビュー/マテビュー、リテンション分析
 
 - 学習履歴可視化: `study_logs`（再生・復習回数、間隔、正答率など）
->>>>>>> 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
+  > > > > > > > 5a7a6fc3d20a7c8a301dee44a3d1b9bd1dfe3853
 - レベル別パーソナライズ: `user_profiles`（CEFR/好み/目標）
 - クイズ機能: `quizzes`, `quiz_questions`, `quiz_answers`, `quiz_sessions`
 - コミュニティ機能: `posts`, `comments`, `likes`
