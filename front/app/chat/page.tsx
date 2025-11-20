@@ -56,7 +56,7 @@ export default function ChatPage() {
 
       const { data, error: profileFetchError } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url, created_at, updated_at")
+        .select("*")
         .eq("user_id", user.id)
         .single();
 
@@ -64,7 +64,7 @@ export default function ChatPage() {
         throw profileFetchError;
       }
 
-      setProfile(data);
+      setProfile(data as Profile);
     } catch (error) {
       console.error("Fetch profile error:", error);
       setProfileError(

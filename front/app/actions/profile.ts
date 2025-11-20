@@ -29,7 +29,7 @@ export async function getProfile(): Promise<GetProfileResult> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("user_id, display_name, avatar_url, created_at, updated_at")
+      .select("*")
       .eq("user_id", user.id)
       .single();
 
@@ -38,7 +38,7 @@ export async function getProfile(): Promise<GetProfileResult> {
       return { success: false, error: error.message };
     }
 
-    return { success: true, profile: data };
+    return { success: true, profile: data as Profile };
   } catch (error) {
     console.error("Get profile error:", error);
     return {
