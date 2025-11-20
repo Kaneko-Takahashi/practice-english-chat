@@ -46,6 +46,7 @@ export async function createConversation(): Promise<CreateConversationResult> {
 
     // profilesテーブルにレコードが存在しない場合は作成
     if (profileCheckError || !profileData) {
+      console.log("Profile not found, creating profile for user:", user.id);
       const { error: profileCreateError } = await supabase
         .from("profiles")
         .upsert(
@@ -74,7 +75,22 @@ export async function createConversation(): Promise<CreateConversationResult> {
         console.error("Profile creation error:", profileCreateError);
         return {
           success: false,
-          error: "プロファイルの作成に失敗しました",
+          error: `プロファイルの作成に失敗しました: ${profileCreateError.message}`,
+        };
+      }
+      
+      // プロファイル作成後、再度確認
+      const { data: verifyProfile, error: verifyError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .single();
+        
+      if (verifyError || !verifyProfile) {
+        console.error("Profile verification failed:", verifyError);
+        return {
+          success: false,
+          error: "プロファイルの作成確認に失敗しました",
         };
       }
     }
