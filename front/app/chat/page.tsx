@@ -568,8 +568,8 @@ export default function ChatPage() {
       {/* メッセージエリア */}
       <div className="flex-1 overflow-y-auto px-4 pt-8 pb-6">
         {dbMessages.length === 0 && streamMessages.length === 0 ? (
-          <div className="flex items-start">
-            <div className="w-full max-w-4xl">
+          <div className="flex items-start justify-center">
+            <div className="w-full max-w-4xl mx-auto">
               <div className="max-w-3xl mx-auto text-center">
                 {/* メインタイトル */}
                 <div className="mb-6 mt-4">
@@ -699,7 +699,7 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-4xl space-y-6 pt-12">
+          <div className="mx-auto max-w-4xl space-y-6 pt-12 px-4">
             {/* データベースから読み込んだメッセージを表示 */}
             {dbMessages.map((message) => {
               // AI応答の3つの吹き出しをグループ化して表示
