@@ -37,6 +37,48 @@ export async function createConversation(): Promise<CreateConversationResult> {
       };
     }
 
+    // profilesテーブルにレコードが存在するか確認
+    const { data: profileData, error: profileCheckError } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .single();
+
+    // profilesテーブルにレコードが存在しない場合は作成
+    if (profileCheckError || !profileData) {
+      const { error: profileCreateError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            display_name:
+              user.user_metadata?.display_name ||
+              user.user_metadata?.full_name ||
+              user.email?.split("@")[0] ||
+              null,
+            avatar_url: user.user_metadata?.avatar_url || null,
+            learning_level: "standard",
+            tts_enabled: true,
+            tts_speed: "normal",
+            tts_voice: null,
+            theme: "light",
+            font_size: "medium",
+            allow_usage_analysis: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any,
+          { onConflict: "user_id" }
+        );
+
+      if (profileCreateError) {
+        console.error("Profile creation error:", profileCreateError);
+        return {
+          success: false,
+          error: "プロファイルの作成に失敗しました",
+        };
+      }
+    }
+
     // チャットグループを作成
     const { data, error } = await supabase
       .from("chat_groups")
