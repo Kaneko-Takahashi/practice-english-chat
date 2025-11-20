@@ -249,6 +249,95 @@ export interface Database {
           }
         ];
       };
+      chat_groups: {
+        Row: {
+          id: string;
+          profile_id: string;
+          title: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          title?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          title?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "chat_groups_profile_id_fkey";
+            columns: ["profile_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          }
+        ];
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          chat_group_id: string;
+          role: "user" | "assistant" | "system";
+          content: string;
+          sequence_num: number;
+          response_to_message_id: string | null;
+          message_set_id: string | null;
+          bubble_index: number | null;
+          language_code: string;
+          metadata_json: Json | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          chat_group_id: string;
+          role: "user" | "assistant" | "system";
+          content: string;
+          sequence_num: number;
+          response_to_message_id?: string | null;
+          message_set_id?: string | null;
+          bubble_index?: number | null;
+          language_code?: string;
+          metadata_json?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          chat_group_id?: string;
+          role?: "user" | "assistant" | "system";
+          content?: string;
+          sequence_num?: number;
+          response_to_message_id?: string | null;
+          message_set_id?: string | null;
+          bubble_index?: number | null;
+          language_code?: string;
+          metadata_json?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_chat_group_id_fkey";
+            columns: ["chat_group_id"];
+            referencedRelation: "chat_groups";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
