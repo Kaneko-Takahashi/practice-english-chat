@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
-import { signUp, type SignUpResult } from "@/app/actions/auth";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+type SignUpResult =
+  | { success: true; message: string }
+  | { success: false; error: string };
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -33,15 +36,48 @@ export default function SignUpPage() {
     }
 
     try {
-      const result = await signUp(email, password, displayName || undefined);
-      setResult(result);
+      const supabase = createClient();
 
-      if (result.success) {
-        // 成功時は3秒後にホームページにリダイレクト
-        timeoutRef.current = setTimeout(() => {
-          router.push("/");
-        }, 3000);
+      const redirectTo =
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        (process.env.NEXT_PUBLIC_VERCEL_URL
+          ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+          : "http://localhost:3001");
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${redirectTo}/auth/callback`,
+          data: {
+            display_name: displayName || null,
+          },
+        },
+      });
+
+      if (error) {
+        setResult({ success: false, error: error.message });
+        return;
       }
+
+      if (!data.user) {
+        setResult({
+          success: false,
+          error: "ユーザー登録に失敗しました",
+        });
+        return;
+      }
+
+      setResult({
+        success: true,
+        message:
+          "登録が完了しました。確認メールを送信しましたので、メールを確認してください。",
+      });
+
+      // 成功時は3秒後にホームページにリダイレクト（任意。なくてもOK）
+      timeoutRef.current = setTimeout(() => {
+        router.push("/");
+      }, 3000);
     } catch (error) {
       setResult({
         success: false,
