@@ -7,9 +7,9 @@ import { LogoSection } from "./LogoSection";
 import { NavigationLinkItem } from "./NavigationLinkItem";
 import { CollapseButton } from "./CollapseButton";
 
-type NavigationItem = {
+type NavItem = {
   href: string;
-  icon: React.ReactNode;
+  icon: React.ReactElement;
   label: string;
   disabled?: boolean;
 };
@@ -51,7 +51,7 @@ export function SidebarNavContainer() {
     }
   };
 
-  const navigationItems: NavigationItem[] = [
+  const navigationItems: NavItem[] = [
     {
       href: "/chat",
       icon: (
@@ -249,7 +249,7 @@ export function SidebarNavContainer() {
             href={item.href}
             icon={item.icon}
             label={item.label}
-            disabled={item.disabled ?? false}
+            disabled={item.disabled}
             isCollapsed={collapsed}
           />
         ))}
@@ -345,7 +345,7 @@ export function SidebarNavContainer() {
   // デスクトップ表示
   return (
     <aside
-      className={`relative z-10 hidden h-screen overflow-visible transition-all duration-300 md:block ${
+      className={`relative hidden h-screen overflow-visible transition-all duration-300 md:block ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
