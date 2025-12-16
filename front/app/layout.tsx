@@ -19,8 +19,13 @@ export const metadata: Metadata = {
   title: "Lingo Leap - 英語チャット練習アプリ",
   description: "AIとの対話を通じて英語を学習できるアプリケーション",
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: [
+      { url: "/icon.png?v=20251216", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png?v=20251216", type: "image/png" },
+    ],
+    shortcut: ["/favicon.ico?v=20251216"],
   },
 };
 
