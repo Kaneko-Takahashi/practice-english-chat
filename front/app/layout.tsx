@@ -20,13 +20,13 @@ export const metadata: Metadata = {
   description: "AIとの対話を通じて英語を学習できるアプリケーション",
   icons: {
     icon: [
-      { url: "/favicon-16x16.png?v=20251216_2", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png?v=20251216_2", sizes: "32x32", type: "image/png" },
-      { url: "/favicon.ico?v=20251216_2", type: "image/x-icon" },
+      { url: "/favicon-16x16.png?v=20251216_5", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png?v=20251216_5", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico?v=20251216_5", type: "image/x-icon" },
     ],
-    shortcut: "/favicon.ico?v=20251216_2",
+    shortcut: "/favicon.ico?v=20251216_5",
     apple: [
-      { url: "/apple-touch-icon.png?v=20251216_2", sizes: "180x180", type: "image/png" },
+      { url: "/apple-touch-icon.png?v=20251216_5", sizes: "180x180", type: "image/png" },
     ],
   },
 };

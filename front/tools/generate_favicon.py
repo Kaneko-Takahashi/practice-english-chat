@@ -50,7 +50,7 @@ def process_image(source_img, target_size, zoom_factor=1.2):
     Args:
         source_img: ソース画像（PIL Image）
         target_size: 出力サイズ
-        zoom_factor: 拡大倍率（1.15〜1.25の範囲）
+        zoom_factor: 拡大倍率（1.0以上、推奨: 1.2〜2.0）
     """
     # ソース画像のサイズを取得
     src_width, src_height = source_img.size
@@ -61,19 +61,21 @@ def process_image(source_img, target_size, zoom_factor=1.2):
     top = (src_height - min_size) // 2
     cropped = source_img.crop((left, top, left + min_size, top + min_size))
     
-    # 拡大（中心基準）
+    # 拡大（中心基準でクローズアップ）
+    # 拡大倍率が大きいほど、中心部分が大きく表示される
     zoomed_size = int(min_size * zoom_factor)
-    # 拡大後の画像を作成（中心からクロップ）
     zoomed = cropped.resize((zoomed_size, zoomed_size), Image.Resampling.LANCZOS)
     
-    # 元のサイズに戻す（中心部分をクロップ）
-    crop_left = (zoomed_size - min_size) // 2
-    crop_top = (zoomed_size - min_size) // 2
+    # 拡大した画像の中心部分をクロップ（元のサイズではなく、拡大後のサイズから）
+    # これにより、拡大の効果が保持される
+    crop_size = min_size  # 元のサイズを基準にクロップ
+    crop_left = (zoomed_size - crop_size) // 2
+    crop_top = (zoomed_size - crop_size) // 2
     zoomed_cropped = zoomed.crop((
         crop_left,
         crop_top,
-        crop_left + min_size,
-        crop_top + min_size
+        crop_left + crop_size,
+        crop_top + crop_size
     ))
     
     # ターゲットサイズにリサイズ
@@ -141,8 +143,10 @@ def main():
     # 出力ディレクトリの確認
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
-    # 拡大倍率（1.15〜1.25の範囲で調整可能）
-    zoom_factor = 1.2
+    # 拡大倍率（1.0以上、推奨: 1.5〜2.0）
+    # アイコンを大きく表示するため、1.8倍に設定
+    # これにより、円形マスク内でアイコンがより大きく表示される
+    zoom_factor = 1.8
     
     # ICO 用の画像を保存
     ico_images = {}
