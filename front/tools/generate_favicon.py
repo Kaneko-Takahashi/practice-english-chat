@@ -14,7 +14,11 @@ from PIL import Image, ImageDraw
 # プロジェクトルート（このスクリプトの親ディレクトリの親）
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
-SOURCE_IMAGE = PROJECT_ROOT / "public" / "icon-source.png"
+# ソース画像の候補（優先順位順）
+SOURCE_IMAGE_CANDIDATES = [
+    PROJECT_ROOT / "public" / "icon-source.png",
+    PROJECT_ROOT / "app" / "icon.png",  # 既存のアイコンをフォールバックとして使用
+]
 OUTPUT_DIR = PROJECT_ROOT / "public"
 
 # 生成するサイズ
@@ -109,11 +113,21 @@ def generate_ico(images_by_size, output_path):
 
 def main():
     """メイン処理"""
-    # ソース画像の存在確認
-    if not SOURCE_IMAGE.exists():
-        print(f"エラー: ソース画像が見つかりません: {SOURCE_IMAGE}", file=sys.stderr)
-        print(f"ヒント: {SOURCE_IMAGE} を配置してください。", file=sys.stderr)
+    # ソース画像の存在確認（候補から探す）
+    SOURCE_IMAGE = None
+    for candidate in SOURCE_IMAGE_CANDIDATES:
+        if candidate.exists():
+            SOURCE_IMAGE = candidate
+            break
+    
+    if SOURCE_IMAGE is None:
+        print("エラー: ソース画像が見つかりません。", file=sys.stderr)
+        print("以下のいずれかのファイルを配置してください:", file=sys.stderr)
+        for candidate in SOURCE_IMAGE_CANDIDATES:
+            print(f"  - {candidate}", file=sys.stderr)
         sys.exit(1)
+    
+    print(f"ソース画像を使用: {SOURCE_IMAGE}")
     
     # ソース画像を読み込み
     try:
@@ -138,7 +152,7 @@ def main():
         output_path = OUTPUT_DIR / filename
         processed = process_image(source_img, size, zoom_factor)
         processed.save(output_path, "PNG")
-        print(f"✓ 生成: {output_path} ({size}x{size})")
+        print(f"[OK] 生成: {output_path} ({size}x{size})")
         
         # ICO 用に保存
         if size in ICO_SIZES:
@@ -148,9 +162,9 @@ def main():
     ico_path = OUTPUT_DIR / "favicon.ico"
     if ico_images:
         generate_ico(ico_images, ico_path)
-        print(f"✓ 生成: {ico_path} (サイズ: {', '.join([f'{s}x{s}' for s in sorted(ico_images.keys())])})")
+        print(f"[OK] 生成: {ico_path} (サイズ: {', '.join([f'{s}x{s}' for s in sorted(ico_images.keys())])})")
     
-    print("\n✅ すべての favicon の生成が完了しました！")
+    print("\n[完了] すべての favicon の生成が完了しました！")
     print(f"\n生成されたファイル:")
     for filename in SIZES.keys():
         print(f"  - {OUTPUT_DIR / filename}")
