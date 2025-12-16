@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   description: "AIとの対話を通じて英語を学習できるアプリケーション",
   icons: {
     icon: [
+      { url: "/icon.png", sizes: "any" },
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.ico", type: "image/x-icon" },
     ],
     shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
 };
 
