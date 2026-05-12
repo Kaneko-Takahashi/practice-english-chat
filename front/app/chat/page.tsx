@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import type { UIMessage } from "ai";
 import Link from "next/link";
 import { MessageBubble } from "@/components/Chat/MessageBubble";
 import {
@@ -19,6 +21,21 @@ type StreamMessage = {
   role: "user" | "assistant" | "system";
   content?: string;
 };
+
+function textFromUIMessage(message: UIMessage): string {
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("");
+}
+
+function chatRowToUIMessage(msg: ChatMessage): UIMessage {
+  return {
+    id: msg.id,
+    role: msg.role,
+    parts: [{ type: "text", text: msg.content }],
+  };
+}
 
 export default function ChatPage() {
   const [dbMessages, setDbMessages] = useState<ChatMessage[]>([]);
@@ -271,12 +288,9 @@ export default function ChatPage() {
             typeof setStreamMessagesFn === "function"
           ) {
             // データベースから読み込んだメッセージをストリーミングメッセージに反映
-            const formattedMessages = messagesResult.messages.map((msg) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-            }));
-            setStreamMessagesFn(formattedMessages);
+            setStreamMessagesFn(
+              messagesResult.messages.map(chatRowToUIMessage)
+            );
           }
         } else {
           // 再読み込みに失敗した場合は、手動で追加
@@ -305,35 +319,44 @@ export default function ChatPage() {
     fetchProfile();
   }, [fetchProfile]);
 
-  // useChatフックを使用してストリーミングチャットを実装
-  const chatHook: any = useChat({
-    api: "/api/chat",
-    id: conversationId || undefined,
-    body: {
-      conversationId,
-    },
-    onFinish: async (message: any) => {
-      if (!message || message.role !== "assistant" || !message.content) return;
-      await handleAssistantFinish(message.content);
-    },
-  } as any);
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        credentials: "include",
+        body: () => ({ conversationId }),
+      }),
+    [conversationId]
+  );
 
-  // useChatフックから値を取得
-  const streamMessages: StreamMessage[] = chatHook.messages || [];
-  const isLoading = chatHook.isLoading || false;
-  const setStreamMessages = chatHook.setMessages;
+  const { messages: uiMessages, sendMessage, setMessages, status } = useChat({
+    id: conversationId ?? undefined,
+    transport: chatTransport,
+    onFinish: async ({ message }) => {
+      if (message.role !== "assistant") return;
+      const text = textFromUIMessage(message).trim();
+      if (!text) return;
+      await handleAssistantFinish(text);
+    },
+  });
+
+  const streamMessages: StreamMessage[] = useMemo(
+    () =>
+      uiMessages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: textFromUIMessage(m),
+      })),
+    [uiMessages]
+  );
+
+  const isBusy = status === "submitted" || status === "streaming";
+  const setStreamMessages = setMessages;
+
   useEffect(() => {
     streamMessagesRef.current = streamMessages;
     setMessagesRef.current = setStreamMessages;
   }, [streamMessages, setStreamMessages]);
-  const append = chatHook.append;
-
-  // inputValueをuseChatのinputと同期
-  useEffect(() => {
-    if (chatHook.input !== undefined && chatHook.input !== inputValue) {
-      setInputValue(chatHook.input);
-    }
-  }, [chatHook.input]);
 
   // 初期化: 会話を取得または作成し、メッセージを読み込む
   useEffect(() => {
@@ -352,13 +375,9 @@ export default function ChatPage() {
           const messagesResult = await getMessages(result.conversationId);
           if (messagesResult.success) {
             setDbMessages(messagesResult.messages);
-            // ストリーミングメッセージにも反映
-            const formattedMessages = messagesResult.messages.map((msg) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-            }));
-            setStreamMessages(formattedMessages);
+            setStreamMessages(
+              messagesResult.messages.map(chatRowToUIMessage)
+            );
           }
         } else {
           alert(`エラー: ${result.error}`);
@@ -380,19 +399,14 @@ export default function ChatPage() {
 
   // 入力変更ハンドラー
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setInputValue(value);
-    // useChatのinputも更新（可能な場合）
-    if (chatHook.setInput && typeof chatHook.setInput === "function") {
-      chatHook.setInput(value);
-    }
+    setInputValue(e.target.value);
   };
 
   // フォーム送信ハンドラー
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmedValue = inputValue.trim();
-    if (!trimmedValue || isLoading || isInitializing) return;
+    if (!trimmedValue || isBusy || isInitializing) return;
 
     // conversationIdがない場合は作成
     let currentConversationId = conversationId;
@@ -417,122 +431,9 @@ export default function ChatPage() {
       }
     }
 
-    // useChatのappendメソッドを使用してメッセージを送信
     try {
-      if (append && typeof append === "function") {
-        await append({
-          role: "user",
-          content: trimmedValue,
-        });
-        // 送信後に入力フィールドをクリア
-        setInputValue("");
-        // useChatのinputもクリア
-        if (chatHook.setInput && typeof chatHook.setInput === "function") {
-          chatHook.setInput("");
-        }
-      } else {
-        // appendが利用できない場合は、直接APIを呼び出す
-        console.warn(
-          "useChat append method is not available, using direct API call"
-        );
-
-        // ユーザーメッセージをストリーミングメッセージに追加
-        const userMessage = {
-          id: crypto.randomUUID(),
-          role: "user" as const,
-          content: trimmedValue,
-        };
-
-        if (setStreamMessages) {
-          setStreamMessages((prev: any[]) => [...(prev || []), userMessage]);
-        }
-
-        // APIを直接呼び出してストリーミング応答を取得
-        // メッセージを正しい形式に整形（contentプロパティを持つ形式）
-        const formattedMessages = [...(streamMessages || []), userMessage].map(
-          (m: any) => ({
-            id: m.id || crypto.randomUUID(),
-            role: m.role,
-            content: m.content || "",
-          })
-        );
-
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: formattedMessages,
-            conversationId: currentConversationId,
-          }),
-        });
-
-        if (!response.ok) {
-          // エラーレスポンスを解析
-          let errorData: any = {};
-          try {
-            errorData = await response.json();
-          } catch {
-            errorData = { error: response.statusText };
-          }
-
-          const errorMsg = errorData.error || "APIエラーが発生しました";
-          const details = errorData.details || "";
-          const help = errorData.help || "";
-
-          let fullMessage = errorMsg;
-          if (details) fullMessage += `\n\n${details}`;
-          if (help) fullMessage += `\n\n${help}`;
-
-          throw new Error(fullMessage);
-        }
-
-        // ストリーミング応答を処理
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let assistantContent = "";
-        const assistantId = crypto.randomUUID();
-
-        if (reader) {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              const chunk = decoder.decode(value, { stream: true });
-              assistantContent += chunk;
-
-              // ストリーミング中のメッセージを更新
-              if (setStreamMessages) {
-                const assistantMessage = {
-                  id: assistantId,
-                  role: "assistant" as const,
-                  content: assistantContent,
-                };
-                setStreamMessages((prev: any[]) => {
-                  const filtered = (prev || []).filter(
-                    (m: any) =>
-                      !(m.role === "assistant" && m.id === assistantId)
-                  );
-                  return [...filtered, assistantMessage];
-                });
-              }
-            }
-          } catch (streamError) {
-            console.error("Streaming error:", streamError);
-            throw streamError;
-          }
-        }
-        // フォールバック処理後にデータベース保存処理を実行
-        await handleAssistantFinish(assistantContent.trim());
-
-        // フォールバック処理後も入力フィールドをクリア
-        setInputValue("");
-        if (chatHook.setInput && typeof chatHook.setInput === "function") {
-          chatHook.setInput("");
-        }
-      }
+      await sendMessage({ text: trimmedValue });
+      setInputValue("");
 
       // 学習ログを記録（プライバシー設定で許可されている場合のみ）
       try {
@@ -761,7 +662,7 @@ export default function ChatPage() {
               .filter((msg: StreamMessage) => {
                 // ストリーミング中のメッセージはリクエスト完了後に非表示
                 if (
-                  !isLoading &&
+                  !isBusy &&
                   typeof msg.id === "string" &&
                   msg.id.startsWith("streaming-")
                 ) {
@@ -862,7 +763,7 @@ export default function ChatPage() {
               })}
           </div>
         )}
-        {isLoading && (
+        {isBusy && (
           <div className="mx-auto max-w-4xl">
             <div className="flex justify-start">
               <div className="rounded-2xl bg-white px-4 py-3 shadow-md dark:bg-slate-800">
@@ -888,11 +789,11 @@ export default function ChatPage() {
               onChange={handleInputChange}
               placeholder="学びたい内容を入力してください..."
               className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-400"
-              disabled={isLoading || isInitializing}
+              disabled={isBusy || isInitializing}
             />
             <button
               type="submit"
-              disabled={isLoading || isInitializing || !inputValue.trim()}
+              disabled={isBusy || isInitializing || !inputValue.trim()}
               className="rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 px-6 py-3 font-semibold text-white shadow-lg shadow-indigo-500/50 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 dark:from-indigo-500 dark:via-purple-500 dark:to-indigo-500"
             >
               <svg

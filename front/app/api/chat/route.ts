@@ -1,5 +1,28 @@
-import { streamText } from "ai";
+import { convertToModelMessages, streamText } from "ai";
+import type { ModelMessage, UIMessage } from "ai";
 import { createClient } from "@/lib/supabase/server";
+
+function isUIMessageList(messages: unknown): messages is UIMessage[] {
+  return (
+    Array.isArray(messages) &&
+    messages.length > 0 &&
+    typeof messages[0] === "object" &&
+    messages[0] !== null &&
+    "parts" in messages[0] &&
+    Array.isArray((messages[0] as UIMessage).parts)
+  );
+}
+
+/** ModelMessage の content を比較・表示用にフラットな文字列へ */
+function flattenModelContent(content: ModelMessage["content"]): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part: { type?: string; text?: string }) =>
+      part?.type === "text" && typeof part.text === "string" ? part.text : ""
+    )
+    .join("");
+}
 
 // プロバイダーの動的インポート（関数内で実行）
 async function getOpenAIProvider() {
@@ -70,33 +93,54 @@ export async function POST(req: Request) {
       );
     }
 
-    const { messages, conversationId } = await req.json();
+    const raw = (await req.json()) as {
+      messages?: unknown;
+      conversationId?: string;
+      id?: string;
+    };
+    const conversationId = raw.conversationId ?? raw.id;
+    const messagesRaw = raw.messages;
+
     console.log(
       "Chat API: Messages received:",
-      messages?.length,
+      Array.isArray(messagesRaw) ? messagesRaw.length : 0,
       "Conversation ID:",
       conversationId
     );
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!messagesRaw || !Array.isArray(messagesRaw) || messagesRaw.length === 0) {
       return new Response(JSON.stringify({ error: "メッセージが不正です。" }), {
         status: 400,
       });
     }
 
-    // useChatフックから送信されるメッセージ形式を処理
-    // messagesは { id, role, content } の形式
-    const formattedMessages = messages.map((m: any) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // AI SDK useChat: UIMessage[]（parts）／フォールバック: { role, content }
+    let modelMessages: ModelMessage[];
+    try {
+      modelMessages = isUIMessageList(messagesRaw)
+        ? convertToModelMessages(messagesRaw)
+        : (messagesRaw as { role: string; content?: string }[]).map(
+            (m) =>
+              ({
+                role: m.role,
+                content: m.content ?? "",
+              }) as ModelMessage
+          );
+    } catch (e) {
+      console.error("Chat API: convert messages failed:", e);
+      return new Response(
+        JSON.stringify({ error: "メッセージの形式が不正です。" }),
+        { status: 400 }
+      );
+    }
 
-    // 最新のユーザーメッセージを取得
-    const lastUserMessage = formattedMessages
-      .filter((m: any) => m.role === "user")
-      .pop();
+    const userModels = modelMessages.filter((m) => m.role === "user");
+    const lastUserModel = userModels[userModels.length - 1];
+    const lastUserText = lastUserModel
+      ? flattenModelContent(lastUserModel.content).trim()
+      : "";
 
-    if (!lastUserMessage || !lastUserMessage.content) {
+    if (!lastUserText) {
       return new Response(
         JSON.stringify({ error: "ユーザーメッセージが見つかりません。" }),
         { status: 400 }
@@ -228,22 +272,25 @@ Do not include explanations, just the three numbered expressions with Japanese t
     // ストリーミング応答を生成
     // 会話の履歴を使用して、より自然な応答を生成
     // 最新のユーザーメッセージが既に含まれている場合は、そのまま使用
-    const contextMessages = formattedMessages.slice(-5); // 直近5メッセージを使用（コンテキスト保持）
+    const contextMessages = modelMessages.slice(-5); // 直近5メッセージを使用（コンテキスト保持）
     const lastMessageInContext = contextMessages[contextMessages.length - 1];
+    const lastInCtxText =
+      lastMessageInContext?.role === "user"
+        ? flattenModelContent(lastMessageInContext.content).trim()
+        : "";
 
     // 最新のメッセージがユーザーメッセージで、内容が一致する場合はそのまま使用
-    const finalMessages =
-      lastMessageInContext?.role === "user" &&
-      lastMessageInContext?.content === lastUserMessage.content
+    const finalMessages: ModelMessage[] =
+      lastMessageInContext?.role === "user" && lastInCtxText === lastUserText
         ? contextMessages
         : [
-            ...contextMessages.filter(
-              (m: any) =>
-                m.role !== "user" || m.content !== lastUserMessage.content
-            ),
+            ...contextMessages.filter((m) => {
+              if (m.role !== "user") return true;
+              return flattenModelContent(m.content).trim() !== lastUserText;
+            }),
             {
               role: "user" as const,
-              content: `How can I express "${lastUserMessage.content}" in English? Provide exactly 3 different ways, numbered 1, 2, and 3.`,
+              content: `How can I express "${lastUserText}" in English? Provide exactly 3 different ways, numbered 1, 2, and 3.`,
             },
           ];
 
@@ -262,10 +309,10 @@ Do not include explanations, just the three numbered expressions with Japanese t
 
     console.log("Chat API: StreamText result obtained");
 
-    // useChatフック用のストリーミングレスポンスを返す
-    return result.toTextStreamResponse({
+    // useChat（DefaultChatTransport）向け: UI メッセージストリーム（SSE）
+    return result.toUIMessageStreamResponse({
       headers: {
-        "X-Conversation-Id": conversationId || "",
+        "X-Conversation-Id": conversationId ?? "",
       },
     });
   } catch (error) {
