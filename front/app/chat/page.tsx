@@ -50,6 +50,14 @@ export default function ChatPage() {
   const streamMessagesRef = useRef<any[]>([]);
   const setMessagesRef = useRef<any>(null);
 
+  // ★ 修正1: handleAssistantFinish を ref 経由で呼ぶ（依存配列から外すため）
+  const handleAssistantFinishRef = useRef<(rawContent: string) => Promise<void>>(
+    async () => {}
+  );
+
+  // ★ 修正2: 直前の status を記録し「ready への遷移」のみ検知する
+  const prevStatusRef = useRef<string>("idle");
+
   const fetchProfile = useCallback(async () => {
     setProfileError(null);
     setIsProfileLoading(true);
@@ -97,6 +105,7 @@ export default function ChatPage() {
 
   const handleAssistantFinish = useCallback(
     async (rawContent: string) => {
+      console.log("onFinish called:", rawContent);
       if (!conversationId) return;
 
       const currentStreamMessages = streamMessagesRef.current || [];
@@ -105,49 +114,37 @@ export default function ChatPage() {
       try {
         const content = rawContent.trim();
 
-        let assistantResponses: Array<{ english: string; japanese: string }> =
-          [];
+        let assistantResponses: Array<{ english: string; japanese: string }> = [];
 
-        // パターン1: 番号付きリスト（1. 2. 3.）で分割を試みる
-        // 形式: "1. English text (日本語訳)"
-        // より正確な正規表現: 英語部分と日本語部分を明確に分離
-        // 改善: 括弧の前に改行がある場合も対応
-        const numberedPattern =
-          /^\d+\.\s*(.+?)[\r\n\s]*[（(]([^()（）]+)[)）]\s*$/gm;
+        const numberedPattern = /^\d+\.\s*(.+?)[\r\n\s]*[（(]([^()（）]+)[)）]\s*$/gm;
         const numberedMatches = Array.from(content.matchAll(numberedPattern));
 
         console.log("Parsing AI response. Content:", content);
         console.log("Numbered matches found:", numberedMatches.length);
 
         if (numberedMatches.length >= 3) {
-          // 番号付きリストから3つを抽出（英語と日本語を分離）
           assistantResponses = numberedMatches.slice(0, 3).map((match) => ({
             english: match[1].trim(),
             japanese: match[2].trim(),
           }));
         } else if (numberedMatches.length > 0) {
-          // 3つ未満でも、マッチしたものは使用
           assistantResponses = numberedMatches.map((match) => ({
             english: match[1].trim(),
             japanese: match[2].trim(),
           }));
         } else {
-          // パターン2: 番号付きリストだが、括弧の位置が異なる場合
           const fallbackPattern = /^\d+\.\s*(.+)$/gm;
           const fallbackMatches = Array.from(content.matchAll(fallbackPattern));
 
           if (fallbackMatches.length >= 3) {
             assistantResponses = fallbackMatches.slice(0, 3).map((match) => {
               const text = match[1].trim();
-              // 括弧内の日本語を抽出を試みる（全角・半角括弧に対応）
               const japaneseMatch = text.match(/[（(]([^()（）]+)[)）]/);
               const japanese = japaneseMatch ? japaneseMatch[1].trim() : "";
-              // 括弧とその内容を削除して英語部分を取得
               const english = text.replace(/[（(][^()（）]+[)）]/g, "").trim();
               return { english, japanese };
             });
           } else if (fallbackMatches.length > 0) {
-            // 3つ未満でも、マッチしたものは使用
             assistantResponses = fallbackMatches.map((match) => {
               const text = match[1].trim();
               const japaneseMatch = text.match(/[（(]([^()（）]+)[)）]/);
@@ -156,8 +153,6 @@ export default function ChatPage() {
               return { english, japanese };
             });
           } else {
-            // パターン3: 番号付きリストがない場合は改行で分割
-            // 改善: 複数行にまたがる場合も対応
             const lines = content.split(/\n+/).filter((line) => line.trim());
             const responses: Array<{ english: string; japanese: string }> = [];
 
@@ -165,24 +160,18 @@ export default function ChatPage() {
               const line = lines[i].trim();
               if (!line) continue;
 
-              // 行頭の番号を削除
               const cleaned = line.replace(/^\d+\.\s*/, "").trim();
               if (!cleaned) continue;
 
-              // 次の行に括弧がある場合もチェック
               let fullLine = cleaned;
               if (i + 1 < lines.length && lines[i + 1].trim().match(/^[（(]/)) {
                 fullLine = cleaned + " " + lines[i + 1].trim();
-                i++; // 次の行をスキップ
+                i++;
               }
 
-              // 括弧内の日本語を抽出を試みる（全角・半角括弧に対応）
               const japaneseMatch = fullLine.match(/[（(]([^()（）]+)[)）]/);
               const japanese = japaneseMatch ? japaneseMatch[1].trim() : "";
-              // 括弧とその内容を削除して英語部分を取得
-              const english = fullLine
-                .replace(/[（(][^()（）]+[)）]/g, "")
-                .trim();
+              const english = fullLine.replace(/[（(][^()（）]+[)）]/g, "").trim();
 
               if (english) {
                 responses.push({ english, japanese });
@@ -194,45 +183,33 @@ export default function ChatPage() {
             if (responses.length >= 3) {
               assistantResponses = responses.slice(0, 3);
             } else if (responses.length > 0) {
-              // 3つ未満の場合は、既存の内容を使用
               assistantResponses = responses;
             } else {
-              // 応答がない場合は、元の内容をそのまま使用（英語のみ）
               console.warn("Could not parse AI response, using raw content");
               assistantResponses = [{ english: content, japanese: "" }];
             }
           }
         }
 
-        // 3つ未満の場合は、最後の応答を複製して3つにする
         while (assistantResponses.length < 3 && assistantResponses.length > 0) {
-          assistantResponses.push(
-            assistantResponses[assistantResponses.length - 1]
-          );
+          assistantResponses.push(assistantResponses[assistantResponses.length - 1]);
         }
 
-        // 最大3つまで
         assistantResponses = assistantResponses.slice(0, 3);
 
-        // ユーザーメッセージを取得（最新のユーザーメッセージ）
-        const userMessages = currentStreamMessages.filter(
-          (m) => m.role === "user"
-        );
+        const userMessages = currentStreamMessages.filter((m) => m.role === "user");
         const lastUserMessage = userMessages[userMessages.length - 1];
         if (!lastUserMessage) return;
 
-        // ユーザーメッセージをデータベースから取得または保存
         const currentSequenceNum = dbMessages.length + 1;
         let userMessageId: string | undefined;
 
-        // データベースにユーザーメッセージが保存されているか確認
         const existingUserMessage = dbMessages.find(
           (m) => m.role === "user" && m.content === lastUserMessage.content
         );
         if (existingUserMessage) {
           userMessageId = existingUserMessage.id;
         } else {
-          // ユーザーメッセージを保存
           const userMessageResult = await saveMessage(
             conversationId,
             "user",
@@ -244,13 +221,11 @@ export default function ChatPage() {
           }
         }
 
-        // AI応答を3つの吹き出しとして保存
         const messageSetId = crypto.randomUUID();
         const assistantMessages: ChatMessage[] = [];
 
         for (let i = 0; i < Math.min(assistantResponses.length, 3); i++) {
           const sequenceNum = currentSequenceNum + 1 + i;
-          // 英語と日本語を結合して保存（表示時に分離）
           const combinedContent = assistantResponses[i].japanese
             ? `${assistantResponses[i].english}\n(${assistantResponses[i].japanese})`
             : assistantResponses[i].english;
@@ -277,26 +252,15 @@ export default function ChatPage() {
           }
         }
 
-        // データベースからメッセージを再読み込み（正しいUUIDを取得するため）
         const messagesResult = await getMessages(conversationId);
         if (messagesResult.success) {
           setDbMessages(messagesResult.messages);
-          // ストリーミングメッセージをクリア（データベースから読み込んだメッセージのみを表示）
-          // useChatのsetMessagesを使用してストリーミングメッセージを更新
-          if (
-            setStreamMessagesFn &&
-            typeof setStreamMessagesFn === "function"
-          ) {
-            // データベースから読み込んだメッセージをストリーミングメッセージに反映
-            setStreamMessagesFn(
-              messagesResult.messages.map(chatRowToUIMessage)
-            );
+          if (setStreamMessagesFn && typeof setStreamMessagesFn === "function") {
+            setStreamMessagesFn(messagesResult.messages.map(chatRowToUIMessage));
           }
         } else {
-          // 再読み込みに失敗した場合は、手動で追加
           setDbMessages((prev) => {
             const updated = [...prev];
-            // ユーザーメッセージが既に存在しない場合は追加
             if (!existingUserMessage && userMessageId) {
               updated.push({
                 id: userMessageId,
@@ -315,38 +279,61 @@ export default function ChatPage() {
     [conversationId, dbMessages, setDbMessages]
   );
 
+  // ★ 毎レンダーで ref を最新の関数に同期
+  handleAssistantFinishRef.current = handleAssistantFinish;
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
   const chatTransport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        credentials: "include",
-        body: () => ({ conversationId }),
-      }),
+    () => new DefaultChatTransport({
+      api: "/api/chat",
+      credentials: "include",
+      body: () => ({ conversationId }),
+    }),
     [conversationId]
   );
-
+  
   const { messages: uiMessages, sendMessage, setMessages, status } = useChat({
-    id: conversationId ?? undefined,
     transport: chatTransport,
-    onFinish: async ({ message }) => {
-      if (message.role !== "assistant") return;
-      const text = textFromUIMessage(message).trim();
-      if (!text) return;
-      await handleAssistantFinish(text);
-    },
+    id: conversationId ?? undefined,
   });
 
+  // ★ 修正: status が「streaming/submitted → ready」に遷移した瞬間だけ1回だけ呼ぶ
+  //         handleAssistantFinish を依存配列に含めないことでループを断ち切る
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+
+    console.log("status changed:", prevStatus, "->", status);
+
+    // ready への遷移でなければスキップ
+    if (status !== "ready") return;
+    // すでに ready だった場合もスキップ（uiMessages 変化による再実行を防ぐ）
+    if (prevStatus === "ready") return;
+
+    const lastMsg = uiMessages[uiMessages.length - 1];
+    if (!lastMsg) return;
+    if (lastMsg.role !== "assistant") return;
+
+    const text = textFromUIMessage(lastMsg).trim();
+    if (!text) return;
+
+    // ref 経由で呼ぶ（handleAssistantFinish を依存配列に入れなくてよい）
+    handleAssistantFinishRef.current(text);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, uiMessages]);
+
   const streamMessages: StreamMessage[] = useMemo(
-    () =>
-      uiMessages.map((m) => ({
+    () => {
+      console.log("uiMessages:", uiMessages);
+      return uiMessages.map((m) => ({
         id: m.id,
         role: m.role,
         content: textFromUIMessage(m),
-      })),
+      }));
+    },
     [uiMessages]
   );
 
@@ -358,7 +345,6 @@ export default function ChatPage() {
     setMessagesRef.current = setStreamMessages;
   }, [streamMessages, setStreamMessages]);
 
-  // 初期化: 会話を取得または作成し、メッセージを読み込む
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -371,13 +357,10 @@ export default function ChatPage() {
             setStreamMessages([]);
           }
 
-          // 既存のメッセージを読み込む
           const messagesResult = await getMessages(result.conversationId);
           if (messagesResult.success) {
             setDbMessages(messagesResult.messages);
-            setStreamMessages(
-              messagesResult.messages.map(chatRowToUIMessage)
-            );
+            setStreamMessages(messagesResult.messages.map(chatRowToUIMessage));
           }
         } else {
           alert(`エラー: ${result.error}`);
@@ -397,18 +380,15 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [streamMessages, dbMessages]);
 
-  // 入力変更ハンドラー
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
 
-  // フォーム送信ハンドラー
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmedValue = inputValue.trim();
     if (!trimmedValue || isBusy || isInitializing) return;
 
-    // conversationIdがない場合は作成
     let currentConversationId = conversationId;
     if (!currentConversationId) {
       try {
@@ -432,10 +412,12 @@ export default function ChatPage() {
     }
 
     try {
-      await sendMessage({ text: trimmedValue });
+      await sendMessage({
+        text: trimmedValue,
+      });
+    
       setInputValue("");
-
-      // 学習ログを記録（プライバシー設定で許可されている場合のみ）
+    
       try {
         await logStudyEvent("chat_send", {
           conversation_id: currentConversationId,
@@ -443,14 +425,12 @@ export default function ChatPage() {
         });
       } catch (logError) {
         console.error("Failed to log study event:", logError);
-        // ログ記録の失敗はユーザー体験に影響を与えないため、エラーを表示しない
       }
     } catch (error) {
       console.error("Error sending message:", error);
       alert("メッセージの送信に失敗しました");
     }
   };
-
   if (isInitializing) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -466,13 +446,11 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* メッセージエリア */}
       <div className="flex-1 overflow-y-auto px-4 pt-8 pb-6">
         {dbMessages.length === 0 && streamMessages.length === 0 ? (
           <div className="flex items-start justify-center">
             <div className="w-full max-w-4xl mx-auto">
               <div className="max-w-3xl mx-auto text-center">
-                {/* メインタイトル */}
                 <div className="mb-6 mt-4">
                   <h1 className="mb-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-4xl font-bold text-transparent dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">
                     英語学習を始めましょう！
@@ -482,7 +460,6 @@ export default function ChatPage() {
                   </p>
                 </div>
 
-                {/* 使い方の説明 */}
                 <div className="mb-6 rounded-2xl bg-white/80 p-6 shadow-lg backdrop-blur-sm dark:bg-slate-800/80">
                   <h2 className="mb-4 text-left text-xl font-bold text-slate-800 dark:text-slate-100">
                     💡 使い方はとても簡単！
@@ -490,21 +467,16 @@ export default function ChatPage() {
                   <div className="space-y-2 text-left text-sm text-slate-600 dark:text-slate-400 mb-6">
                     <p>
                       <strong>1️⃣ 入力</strong>:
-                      下の入力欄に、英語で言いたいことを<strong>日本語</strong>
-                      で入力してください。
+                      下の入力欄に、英語で言いたいことを<strong>日本語</strong>で入力してください。
                     </p>
                     <p>
-                      <strong>2️⃣ AI応答</strong>: AIが
-                      <strong>3つの異なる英語表現</strong>を提案します。
+                      <strong>2️⃣ AI応答</strong>: AIが<strong>3つの異なる英語表現</strong>を提案します。
                     </p>
                     <p>
-                      <strong>🔊 音声再生</strong>: 各英語表現の横にある
-                      <strong>スピーカーボタン</strong>
-                      をクリックすると、ネイティブの発音が聞けます！
+                      <strong>🔊 音声再生</strong>: 各英語表現の横にある<strong>スピーカーボタン</strong>をクリックすると、ネイティブの発音が聞けます！
                     </p>
                   </div>
 
-                  {/* リンクとゲームへのコメント */}
                   <div className="mt-6 space-y-4 border-t border-slate-200 pt-6 dark:border-slate-700">
                     <p className="text-center text-sm text-slate-600 dark:text-slate-400">
                       💡 より詳しい設定や使い方はこちら
@@ -537,13 +509,11 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {/* 例 */}
                 <div className="space-y-4">
                   <h3 className="mb-4 text-lg font-semibold text-slate-700 dark:text-slate-300">
                     📝 試してみましょう！こんな場面で使えます
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {/* 例1 */}
                     <div className="group cursor-pointer rounded-xl bg-[#F5F7FF] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#E4E9FF] hover:shadow-md dark:bg-[#F5F7FF]/10 dark:hover:bg-[#E4E9FF]/20">
                       <div className="mb-2 text-3xl">🍽️</div>
                       <h4 className="mb-2 font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">
@@ -554,7 +524,6 @@ export default function ChatPage() {
                       </p>
                     </div>
 
-                    {/* 例2 */}
                     <div className="group cursor-pointer rounded-xl bg-[#F5F7FF] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#E4E9FF] hover:shadow-md dark:bg-[#F5F7FF]/10 dark:hover:bg-[#E4E9FF]/20">
                       <div className="mb-2 text-3xl">👥</div>
                       <h4 className="mb-2 font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">
@@ -565,7 +534,6 @@ export default function ChatPage() {
                       </p>
                     </div>
 
-                    {/* 例3 */}
                     <div className="group cursor-pointer rounded-xl bg-[#F5F7FF] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#E4E9FF] hover:shadow-md dark:bg-[#F5F7FF]/10 dark:hover:bg-[#E4E9FF]/20">
                       <div className="mb-2 text-3xl">👋</div>
                       <h4 className="mb-2 font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">
@@ -576,7 +544,6 @@ export default function ChatPage() {
                       </p>
                     </div>
 
-                    {/* 例4 */}
                     <div className="group cursor-pointer rounded-xl bg-[#F5F7FF] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#E4E9FF] hover:shadow-md dark:bg-[#F5F7FF]/10 dark:hover:bg-[#E4E9FF]/20">
                       <div className="mb-2 text-3xl">✈️</div>
                       <h4 className="mb-2 font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">
@@ -589,7 +556,6 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {/* アクションの促し */}
                 <div className="mt-6">
                   <div className="mb-2 animate-bounce text-3xl">👇</div>
                   <p className="font-semibold text-slate-700 dark:text-slate-300">
@@ -601,18 +567,14 @@ export default function ChatPage() {
           </div>
         ) : (
           <div className="mx-auto max-w-4xl space-y-6 pt-12 px-4">
-            {/* データベースから読み込んだメッセージを表示 */}
             {dbMessages.map((message) => {
-              // AI応答の3つの吹き出しをグループ化して表示
               if (message.role === "assistant" && message.messageSetId) {
-                // 同じmessageSetIdを持つメッセージをグループ化
                 const messageGroup = dbMessages.filter(
                   (m) =>
                     m.messageSetId === message.messageSetId &&
                     m.role === "assistant"
                 );
 
-                // 最初のメッセージのみ表示（グループの代表）
                 if (message.id === messageGroup[0]?.id) {
                   return (
                     <div key={message.messageSetId} className="space-y-3">
@@ -638,11 +600,9 @@ export default function ChatPage() {
                     </div>
                   );
                 }
-                // グループ内の他のメッセージはスキップ
                 return null;
               }
 
-              // ユーザーメッセージまたはグループ化されていないメッセージ
               return (
                 <MessageBubble
                   key={message.id}
@@ -657,10 +617,8 @@ export default function ChatPage() {
               );
             })}
 
-            {/* ストリーミング中のメッセージを表示 */}
             {streamMessages
               .filter((msg: StreamMessage) => {
-                // ストリーミング中のメッセージはリクエスト完了後に非表示
                 if (
                   !isBusy &&
                   typeof msg.id === "string" &&
@@ -668,59 +626,45 @@ export default function ChatPage() {
                 ) {
                   return false;
                 }
-
-                // データベースに既に保存されているメッセージは除外
                 return !dbMessages.some(
                   (dbMsg: ChatMessage) => dbMsg.id === msg.id
                 );
               })
               .map((message: StreamMessage) => {
-                // ストリーミング中のアシスタントメッセージを3つの吹き出しに分割
                 if (message.role === "assistant") {
                   const content = message.content || "";
 
-                  // 番号付きリスト（1. 2. 3.）で分割を試みる
                   const numberedPattern = /^\d+\.\s*(.+?)\s*\((.+?)\)\s*$/gm;
                   const numberedMatches = Array.from(
                     content.matchAll(numberedPattern)
                   );
 
-                  let responses: Array<{ english: string; japanese: string }> =
-                    [];
+                  let responses: Array<{ english: string; japanese: string }> = [];
 
                   if (numberedMatches.length >= 3) {
-                    // 番号付きリストから3つを抽出
-                    responses = numberedMatches
-                      .slice(0, 3)
-                      .map((match: any) => ({
-                        english: match[1].trim(),
-                        japanese: match[2].trim(),
-                      }));
+                    responses = numberedMatches.slice(0, 3).map((match: any) => ({
+                      english: match[1].trim(),
+                      japanese: match[2].trim(),
+                    }));
                   } else {
-                    // フォールバック: 改行で分割
                     const lines: string[] = content
                       .split(/\n+/)
                       .filter((line: string) => line.trim().length > 0);
                     responses = lines.slice(0, 3).map((line: string) => {
                       const cleaned = line.replace(/^\d+\.\s*/, "").trim();
                       const japaneseMatch = cleaned.match(/\((.+?)\)/);
-                      const japanese = japaneseMatch
-                        ? japaneseMatch[1].trim()
-                        : "";
+                      const japanese = japaneseMatch ? japaneseMatch[1].trim() : "";
                       const english = cleaned.replace(/\(.+?\)/g, "").trim();
                       return { english, japanese };
                     });
                   }
 
-                  // 3つ未満の場合は、最後の応答を複製
                   while (responses.length < 3 && responses.length > 0) {
                     responses.push(responses[responses.length - 1]);
                   }
 
-                  // 最大3つまで
                   responses = responses.slice(0, 3);
 
-                  // 3つの吹き出しとして表示
                   return (
                     <div
                       key={message.id || `streaming-${message.role}`}
@@ -745,7 +689,6 @@ export default function ChatPage() {
                   );
                 }
 
-                // ユーザーメッセージ
                 if (message.role === "user") {
                   return (
                     <MessageBubble
@@ -779,7 +722,6 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 入力フォーム */}
       <div className="border-t border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/80">
         <div className="mx-auto max-w-4xl px-4 py-4">
           <form onSubmit={handleSubmit} className="flex gap-2">

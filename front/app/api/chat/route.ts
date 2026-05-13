@@ -1,4 +1,4 @@
-import { convertToModelMessages, streamText } from "ai";
+import { convertToModelMessages, streamText} from "ai";
 import type { ModelMessage, UIMessage } from "ai";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,18 +13,20 @@ function isUIMessageList(messages: unknown): messages is UIMessage[] {
   );
 }
 
-/** ModelMessage の content を比較・表示用にフラットな文字列へ */
 function flattenModelContent(content: ModelMessage["content"]): string {
   if (typeof content === "string") return content;
+
   if (!Array.isArray(content)) return "";
+
   return content
     .map((part: { type?: string; text?: string }) =>
-      part?.type === "text" && typeof part.text === "string" ? part.text : ""
+      part?.type === "text" && typeof part.text === "string"
+        ? part.text
+        : ""
     )
     .join("");
 }
 
-// プロバイダーの動的インポート（関数内で実行）
 async function getOpenAIProvider() {
   try {
     const openaiModule = await import("@ai-sdk/openai");
@@ -51,9 +53,9 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   try {
     console.log("Chat API: Request received");
+
     const supabase = await createClient();
 
-    // 認証チェック
     const {
       data: { user },
       error: userError,
@@ -61,13 +63,20 @@ export async function POST(req: Request) {
 
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: "認証が必要です。ログインしてください。" }),
-        { status: 401 }
+        JSON.stringify({
+          error: "認証が必要です。ログインしてください。",
+        }),
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // ユーザーの学習レベルを取得
     let learningLevel: "beginner" | "standard" | "advanced" = "standard";
+
     try {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -77,20 +86,17 @@ export async function POST(req: Request) {
 
       if (!profileError && profileData) {
         const level = (profileData as any).learning_level;
+
         if (
           level === "beginner" ||
           level === "standard" ||
           level === "advanced"
         ) {
           learningLevel = level;
-          console.log("Chat API: User learning level:", learningLevel);
         }
       }
     } catch (error) {
-      console.warn(
-        "Chat API: Failed to fetch learning level, using default:",
-        error
-      );
+      console.warn("Failed to fetch learning level:", error);
     }
 
     const raw = (await req.json()) as {
@@ -98,78 +104,94 @@ export async function POST(req: Request) {
       conversationId?: string;
       id?: string;
     };
+
     const conversationId = raw.conversationId ?? raw.id;
     const messagesRaw = raw.messages;
 
     console.log(
-      "Chat API: Messages received:",
-      Array.isArray(messagesRaw) ? messagesRaw.length : 0,
-      "Conversation ID:",
-      conversationId
+      "Messages received:",
+      Array.isArray(messagesRaw) ? messagesRaw.length : 0
     );
 
-    if (!messagesRaw || !Array.isArray(messagesRaw) || messagesRaw.length === 0) {
-      return new Response(JSON.stringify({ error: "メッセージが不正です。" }), {
-        status: 400,
-      });
+    if (
+      !messagesRaw ||
+      !Array.isArray(messagesRaw) ||
+      messagesRaw.length === 0
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "メッセージが不正です。",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
     }
 
-    // AI SDK useChat: UIMessage[]（parts）／フォールバック: { role, content }
     let modelMessages: ModelMessage[];
+
     try {
       modelMessages = isUIMessageList(messagesRaw)
         ? convertToModelMessages(messagesRaw)
         : (messagesRaw as { role: string; content?: string }[]).map(
             (m) =>
               ({
-                role: m.role,
+                role: m.role as ModelMessage["role"],
                 content: m.content ?? "",
               }) as ModelMessage
           );
     } catch (e) {
-      console.error("Chat API: convert messages failed:", e);
+      console.error("Convert messages failed:", e);
+
       return new Response(
-        JSON.stringify({ error: "メッセージの形式が不正です。" }),
-        { status: 400 }
+        JSON.stringify({
+          error: "メッセージ形式が不正です。",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    const userModels = modelMessages.filter((m) => m.role === "user");
-    const lastUserModel = userModels[userModels.length - 1];
+    const userMessages = modelMessages.filter((m) => m.role === "user");
+
+    const lastUserModel = userMessages[userMessages.length - 1];
+
     const lastUserText = lastUserModel
       ? flattenModelContent(lastUserModel.content).trim()
       : "";
 
     if (!lastUserText) {
       return new Response(
-        JSON.stringify({ error: "ユーザーメッセージが見つかりません。" }),
-        { status: 400 }
+        JSON.stringify({
+          error: "ユーザーメッセージが見つかりません。",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // AIプロバイダーの設定（環境変数から取得）
     const aiProvider = process.env.AI_PROVIDER || "openai";
+
     const apiKey =
       aiProvider === "google"
         ? process.env.GOOGLE_GENERATIVE_AI_API_KEY
         : process.env.OPENAI_API_KEY;
 
-    console.log("Chat API: Provider:", aiProvider, "API Key exists:", !!apiKey);
-
     if (!apiKey) {
-      const keyName =
-        aiProvider === "google"
-          ? "GOOGLE_GENERATIVE_AI_API_KEY"
-          : "OPENAI_API_KEY";
-
-      console.error(`Chat API: ${keyName} is not set`);
-
       return new Response(
         JSON.stringify({
-          error: `AI APIキーが設定されていません。`,
-          details: `.env.localファイルに${keyName}を設定してください。`,
-          help: "詳細はfront/ENV_SETUP.mdを参照してください。",
-          provider: aiProvider,
+          error: "APIキーが設定されていません。",
         }),
         {
           status: 500,
@@ -180,161 +202,159 @@ export async function POST(req: Request) {
       );
     }
 
-    // プロバイダーに応じてモデルを選択
-    let model;
     const modelName =
       process.env.AI_MODEL ||
-      (aiProvider === "google" ? "gemini-1.5-flash" : "gpt-4o-mini");
+      (aiProvider === "google"
+        ? "gemini-1.5-flash"
+        : "gpt-4o-mini");
 
-    // プロバイダーを動的に読み込む
+    let model;
+
     if (aiProvider === "google") {
       const createGoogle = await getGoogleProvider();
+
       if (!createGoogle) {
         return new Response(
           JSON.stringify({
-            error: "@ai-sdk/google パッケージがインストールされていません。",
+            error: "@ai-sdk/google がインストールされていません。",
           }),
-          { status: 500 }
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
         );
       }
-      const google = createGoogle({ apiKey });
+
+      const google = createGoogle({
+        apiKey,
+      });
+
       model = google(modelName);
     } else {
       const createOpenAI = await getOpenAIProvider();
+
       if (!createOpenAI) {
         return new Response(
           JSON.stringify({
-            error: "@ai-sdk/openai パッケージがインストールされていません。",
+            error: "@ai-sdk/openai がインストールされていません。",
           }),
-          { status: 500 }
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
         );
       }
-      const openai = createOpenAI({ apiKey });
+
+      const openai = createOpenAI({
+        apiKey,
+      });
+
       model = openai(modelName);
     }
 
-    // 学習レベルに応じた指示を構築
     let levelGuidance = "";
+
     switch (learningLevel) {
       case "beginner":
         levelGuidance = `
-LEARNING LEVEL: Beginner (やさしい)
-- Use simple, common words and short sentences
-- Avoid complex grammar structures
-- Focus on basic, everyday expressions
-- Use vocabulary that beginners would know (CEFR A1-A2 level)`;
+- Use simple and short English sentences
+- Use beginner-friendly vocabulary
+`;
         break;
+
       case "advanced":
         levelGuidance = `
-LEARNING LEVEL: Advanced (チャレンジ)
-- Use sophisticated vocabulary and complex sentence structures
-- Include idiomatic expressions and phrasal verbs
-- Provide formal and business English options
-- Challenge the learner with advanced expressions (CEFR C1-C2 level)`;
+- Use sophisticated English expressions
+- Include business and formal English
+`;
         break;
+
       case "standard":
       default:
         levelGuidance = `
-LEARNING LEVEL: Standard (ふつう)
-- Use natural, everyday conversational English
-- Balance between simple and moderate complexity
-- Include common expressions used by native speakers
-- Appropriate for intermediate learners (CEFR B1-B2 level)`;
+- Use natural conversational English
+- Use intermediate-level expressions
+`;
         break;
     }
 
-    // プロンプトを構築（3つの英語表現と日本語訳を生成するように指示）
-    const systemPrompt = `You are an English learning assistant. When a user asks how to express something in English, provide exactly 3 different ways to say it.
+    const systemPrompt = `
+You are an English learning assistant.
+
 ${levelGuidance}
 
-Each response should be:
-1. Natural and commonly used in everyday conversation
-2. Appropriate for different contexts or formality levels
-3. Clear and easy to understand
-4. Matched to the learner's level as specified above
+Provide exactly 3 English expressions.
 
-IMPORTANT: Format your response as exactly 3 separate entries, each on a new line. Each entry should include:
-- English expression
-- Japanese translation in parentheses
+Format:
 
-Format as:
-1. [English expression] ([Japanese translation])
-2. [English expression] ([Japanese translation])
-3. [English expression] ([Japanese translation])
+1. English sentence (Japanese translation)
+2. English sentence (Japanese translation)
+3. English sentence (Japanese translation)
 
-Example:
-1. Can you tell me how to get to the station? (駅までの行き方を教えてもらえますか？)
-2. Could you please give me directions to the station? (駅までの道順を教えていただけますか？)
-3. How do I get to the train station? (駅にはどうやって行けばいいですか？)
+Do not include explanations.
+`;
 
-Do not include explanations, just the three numbered expressions with Japanese translations.`;
+    const contextMessages = modelMessages.slice(-5);
 
-    // ストリーミング応答を生成
-    // 会話の履歴を使用して、より自然な応答を生成
-    // 最新のユーザーメッセージが既に含まれている場合は、そのまま使用
-    const contextMessages = modelMessages.slice(-5); // 直近5メッセージを使用（コンテキスト保持）
-    const lastMessageInContext = contextMessages[contextMessages.length - 1];
-    const lastInCtxText =
-      lastMessageInContext?.role === "user"
-        ? flattenModelContent(lastMessageInContext.content).trim()
-        : "";
-
-    // 最新のメッセージがユーザーメッセージで、内容が一致する場合はそのまま使用
-    const finalMessages: ModelMessage[] =
-      lastMessageInContext?.role === "user" && lastInCtxText === lastUserText
-        ? contextMessages
-        : [
-            ...contextMessages.filter((m) => {
-              if (m.role !== "user") return true;
-              return flattenModelContent(m.content).trim() !== lastUserText;
-            }),
-            {
-              role: "user" as const,
-              content: `How can I express "${lastUserText}" in English? Provide exactly 3 different ways, numbered 1, 2, and 3.`,
-            },
-          ];
+    const finalMessages: ModelMessage[] = [
+      ...contextMessages,
+      {
+        role: "user",
+        content: `How can I express "${lastUserText}" in English? Provide exactly 3 numbered examples.`,
+      },
+    ];
 
     console.log(
-      "Chat API: Starting streamText with",
+      "Starting generateText with",
       finalMessages.length,
       "messages"
     );
-
-    const result = await streamText({
+    
+    const result = streamText({
       model,
       system: systemPrompt,
       messages: finalMessages,
       temperature: 0.7,
     });
-
-    console.log("Chat API: StreamText result obtained");
-
-    // useChat（DefaultChatTransport）向け: UI メッセージストリーム（SSE）
-    return result.toUIMessageStreamResponse({
-      headers: {
-        "X-Conversation-Id": conversationId ?? "",
-      },
-    });
-  } catch (error) {
-    console.error("Chat API error:", error);
-    console.error(
-      "Error stack:",
-      error instanceof Error ? error.stack : "No stack"
-    );
+    
+    return result.toUIMessageStreamResponse();
+    
     return new Response(
       JSON.stringify({
-        error:
-          error instanceof Error
-            ? error.message
-            : "予期しないエラーが発生しました",
-        details: error instanceof Error ? error.stack : String(error),
+        messages: [
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: result.text,
+          },
+        ],
       }),
       {
-        status: 500,
         headers: {
           "Content-Type": "application/json",
         },
       }
     );
-  }
-}
+      } catch (error) {
+        console.error("Chat API error:", error);
+    
+        return new Response(
+          JSON.stringify({
+            error:
+              error instanceof Error
+                ? error.message
+                : "予期しないエラーが発生しました",
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+    }
